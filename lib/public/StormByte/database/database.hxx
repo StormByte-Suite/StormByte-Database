@@ -49,11 +49,8 @@
 #include <StormByte/logger/log.hxx>
 #include <StormByte/safe/pointers.hxx>
 
-#include <memory>
 #include <mutex>
-#include <string>
 #include <string_view>
-#include <unordered_map>
 
 /**
  * @namespace StormByte
@@ -314,7 +311,13 @@ namespace StormByte {
 				virtual bool DoSilentQuery(std::string_view query) noexcept = 0;
 
 			private:
-				std::unordered_map<std::string, StormByte::Safe::Unique<PreparedSTMT>> m_prepared_stmts; ///< Statements owned by Database
+				/**
+				 * @struct PreparedStatements
+				 * @brief Opaque prepared-statement registry defined in the Database DLL.
+				 */
+				struct PreparedStatements;
+
+				StormByte::Safe::Unique<PreparedStatements> m_prepared_stmts; ///< Base-heap owner of the opaque registry
 
 				/**
 				 * @brief Find a prepared statement by name.

@@ -38,7 +38,10 @@ endif()
 ]=])
 
 set(_database_lib_dir "${_install_prefix}/${DATABASE_INSTALL_LIBDIR}")
-set(_dependency_prefix "${DATABASE_BINARY_DIR}/buildmaster/install")
+set(_dependency_prefix "${DATABASE_BINARY_DIR}/stormbyte-buildmaster/install")
+if(NOT IS_DIRECTORY "${_dependency_prefix}")
+	set(_dependency_prefix "${DATABASE_BINARY_DIR}/buildmaster/install")
+endif()
 set(_configure_command "${CMAKE_COMMAND}" -S "${_consumer_source}" -B "${_consumer_build}" -G "${DATABASE_GENERATOR}"
 	"-DDATABASE_SOURCE_DIR=${DATABASE_SOURCE_DIR}"
 	"-DDATABASE_INCLUDE_DIR=${_install_prefix}/include"

@@ -34,10 +34,11 @@ If you landed here from a release link and have not read the tree:
   - PostgreSQL's Meson configure, so its OpenSSL function checks succeed.
   - MariaDB Connector/C plugin DLLs such as `sha256_password.dll`.
 
-## [2.0.0] - 2026-10-02
+## [2.0.0] - 2026-10-04
 
 ### Changed
 
+- **DLL boundary** — Hid the prepared-statement STL map behind an opaque `Safe::Unique` owner allocated on Base's heap, keeping the map and its allocator inside the Database DLL.
 - **MSSQL backend** — Added an optional Microsoft SQL Server backend using the LGPL FreeTDS DB-Library client. Bundled builds compile only the static DB-Library and its required TDS support archives; logical prepared statements use `sp_executesql` RPC with typed, separately transmitted parameters.
 - **StormByte Suite port** — Migrated first-party repository and documentation links to StormByte-Suite, removed the retired String repository from the suite listing and Doxygen tag references, and updated the Logger and BuildMaster submodule URLs.
 - **Database API and connection behavior**

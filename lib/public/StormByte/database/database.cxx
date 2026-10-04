@@ -41,14 +41,21 @@
 
 #include <StormByte/database/database.hxx>
 #include <exception>
+#include <string>
 #include <string_view>
+#include <unordered_map>
 
 using namespace StormByte::Database;
+
+struct Database::PreparedStatements {
+	std::unordered_map<std::string, StormByte::Safe::Unique<PreparedSTMT>> values;
+};
 
 Database::Database(const StormByte::Safe::Shared<Logger::Log>& logger):
 	m_operation_mutex(StormByte::Safe::Shared<std::recursive_mutex>::MakePointer<std::recursive_mutex>()),
 	m_telemetry(StormByte::Safe::Shared<Telemetry>::MakePointer<Telemetry>()),
-	m_connected(false), m_ssl_mode(SslMode::Default), m_logger(logger) {}
+	m_connected(false), m_ssl_mode(SslMode::Default), m_logger(logger),
+	m_prepared_stmts(StormByte::Safe::Unique<PreparedStatements>::MakePointer<PreparedStatements>()) {}
 
 Database::Database(Database&& other) noexcept:
 	m_operation_mutex(other.m_operation_mutex),
@@ -97,12 +104,15 @@ void Database::SetTelemetry(StormByte::Safe::Shared<Telemetry> telemetry) noexce
 
 void Database::ClearPreparedSTMTs() noexcept {
 	std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
-	m_prepared_stmts.clear();
+	if (m_prepared_stmts)
+		m_prepared_stmts->values.clear();
 }
 
 PreparedSTMT* Database::FindPreparedSTMT(std::string_view name) {
-	auto it = m_prepared_stmts.find(std::string{name});
-	return it == m_prepared_stmts.end() ? nullptr : it->second.get();
+	if (!m_prepared_stmts)
+		return nullptr;
+	auto it = m_prepared_stmts->values.find(std::string{name});
+	return it == m_prepared_stmts->values.end() ? nullptr : it->second.get();
 }
 bool Database::Connect() noexcept {
 	auto telemetry = TrackOperation(Operation::Connect);
@@ -151,9 +161,11 @@ void Database::DoPrepareSTMT(std::string_view name, std::string_view query) noex
 	std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
 	if (m_logger)
 		*m_logger << Logger::Level::Debug << "Preparing statement '" << name << "': " << query << std::endl;
+	if (!m_prepared_stmts)
+		m_prepared_stmts = StormByte::Safe::Unique<PreparedStatements>::MakePointer<PreparedStatements>();
 	StormByte::Safe::Unique<PreparedSTMT> prepared = CreatePreparedSTMT(name, query);
 	if (prepared) {
-		auto [position, inserted] = m_prepared_stmts.emplace(std::string{prepared->Name()}, std::move(prepared));
+		auto [position, inserted] = m_prepared_stmts->values.emplace(std::string{prepared->Name()}, std::move(prepared));
 		(void)position;
 		telemetry.Complete(inserted);
 	}
