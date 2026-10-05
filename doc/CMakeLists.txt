@@ -17,8 +17,8 @@ if(ENABLE_DOC)
 		set(${name}_TAG_FILE "${tag_file}" PARENT_SCOPE)
 	endfunction()
 
-	download_doxygen_tag(StormByte "http://suite.stormbyte.org/StormByte/StormByte.tag")
-	download_doxygen_tag(StormByte-Logger "http://suite.stormbyte.org/StormByte-Logger/StormByte-Logger.tag")
+	download_doxygen_tag(StormByte "https://suite.stormbyte.org/StormByte/StormByte.tag")
+	download_doxygen_tag(StormByte-Logger "https://suite.stormbyte.org/StormByte-Logger/StormByte-Logger.tag")
 
 	set(DOXYGEN_PROJECT_NAME "StormByte-Database")
 	set(DOXYGEN_PROJECT_NUMBER "${PROJECT_VERSION}")
@@ -54,6 +54,8 @@ if(ENABLE_DOC)
 		"STORMBYTE_LOGGER_PUBLIC="
 		"STORMBYTE_STRING_PUBLIC="
 		"STORMBYTE_PUBLIC="
+		"STORMBYTE_FORCE_INLINE=inline"
+		"STORMBYTE_DECLARE_MAYBE_SAFE(SafeType)="
 		"WINDOWS="
 		"LINUX="
 		"MACOS="
@@ -87,8 +89,8 @@ if(ENABLE_DOC)
 	set(DOXYGEN_HTML_EXTRA_STYLESHEET "${CMAKE_CURRENT_SOURCE_DIR}/doxygen-extra.css")
 	set(DOXYGEN_GENERATE_TAGFILE "${CMAKE_SOURCE_DIR}/docs/StormByte-Database.tag")
 	set(DOXYGEN_TAGFILES
-		"${StormByte_TAG_FILE}=http://suite.stormbyte.org/StormByte"
-		"${StormByte-Logger_TAG_FILE}=http://suite.stormbyte.org/StormByte-Logger"
+		"${StormByte_TAG_FILE}=https://suite.stormbyte.org/StormByte"
+		"${StormByte-Logger_TAG_FILE}=https://suite.stormbyte.org/StormByte-Logger"
 	)
 	set(DOXYGEN_GENERATE_MAN NO)
 	set(DOXYGEN_GENERATE_LATEX NO)

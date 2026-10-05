@@ -142,3 +142,6 @@ namespace StormByte {
 					void Reset() noexcept override;
 			};
 		}	}}
+
+/** @brief Conditional DLL safety requires compatible ABIs and live provider modules; derived statements must preserve module-owned lifetime. */
+STORMBYTE_DECLARE_MAYBE_SAFE(StormByte::Database::SQLite::PreparedSTMT);

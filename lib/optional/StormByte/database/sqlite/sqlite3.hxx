@@ -129,14 +129,16 @@ namespace StormByte {
 					 * @param dbfile Path to the database file.
 					 * @param logger Logger instance.
 					 */
-					SQLite3(const std::filesystem::path &dbfile, const StormByte::Safe::Shared<Logger::Log>& logger);
+					STORMBYTE_FORCE_INLINE SQLite3(const std::filesystem::path &dbfile, const StormByte::Safe::Shared<Logger::Log>& logger)
+						: SQLite3(PathText(dbfile), logger, Utf8Path{}) {}
 
 					/**
 					 * @brief File-backed database (moved path and logger).
 					 * @param dbfile Path to the database file.
 					 * @param logger Logger instance.
 					 */
-					SQLite3(std::filesystem::path &&dbfile, const StormByte::Safe::Shared<Logger::Log>& logger);
+					STORMBYTE_FORCE_INLINE SQLite3(std::filesystem::path &&dbfile, const StormByte::Safe::Shared<Logger::Log>& logger)
+						: SQLite3(PathText(dbfile), logger, Utf8Path{}) {}
 
 					/**
 					 * @brief Enable foreign keys (off by default in SQLite).
@@ -151,7 +153,31 @@ namespace StormByte {
 					bool DoSilentQuery(std::string_view query) noexcept override;
 
 				private:
-					std::filesystem::path m_database_file; ///< Database file path
+					/**
+					 * @struct Utf8Path
+					 * @brief Distinguishes the DLL-safe path constructor from caller-side adapters.
+					 */
+					struct Utf8Path {};
+
+					/**
+					 * @brief Store an owned UTF-8 database path inside Database.
+					 * @param dbfile Base-owned UTF-8 path.
+					 * @param logger Logger instance.
+					 * @param tag Selects the UTF-8 constructor.
+					 */
+					SQLite3(const StormByte::Safe::String& dbfile, const StormByte::Safe::Shared<Logger::Log>& logger, Utf8Path tag);
+
+					/**
+					 * @brief Convert a native path without transferring caller-owned STL storage.
+					 * @param path Native path interpreted in the caller's module.
+					 * @return Base-owned UTF-8 text suitable for sqlite3_open.
+					 */
+					STORMBYTE_FORCE_INLINE static StormByte::Safe::String PathText(const std::filesystem::path& path) {
+						const auto text = path.u8string();
+						return StormByte::Safe::String(std::string_view{reinterpret_cast<const char*>(text.data()), text.size()});
+					}
+
+					StormByte::Safe::String m_database_file; ///< Base-owned UTF-8 database file path
 					sqlite3 *m_database;				   ///< SQLite handle (incomplete type)
 
 					/**
@@ -190,3 +216,6 @@ namespace StormByte {
 					void DoBeginTransaction(IsolationLevel level) override;
 			};
 		}	}}
+
+/** @brief Conditional DLL safety requires compatible ABIs and live provider modules; derived facades must preserve Safe ownership. */
+STORMBYTE_DECLARE_MAYBE_SAFE(StormByte::Database::SQLite::SQLite3);

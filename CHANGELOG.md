@@ -23,22 +23,15 @@ If you landed here from a release link and have not read the tree:
 ## [Unreleased]
 [Unreleased]: https://github.com/StormByte-Suite/StormByte-Database/compare/2.0.0...HEAD
 
-### Fixed
-
-- **MSSQL backend** — Fixed result and statement handling across FreeTDS versions:
-  - Zero-length text and binary values are returned as empty values instead of being padded by `dbconvert()`.
-  - Connections enable `QUOTED_IDENTIFIER`, so double-quoted identifiers resolve as identifiers on older DB-Library releases.
-  - NULL prepared-statement parameters are sent as untyped `NULL`, allowing them in any column type such as `VARBINARY(MAX)`.
-  - SQL Server error messages are kept instead of DB-Library's generic notice, and `Telemetry::Errors()` now counts them.
-- **Windows bundled OpenSSL consumers** — Nested builds now link `ws2_32` and `crypt32` alongside the static bundled OpenSSL:
-  - PostgreSQL's Meson configure, so its OpenSSL function checks succeed.
-  - MariaDB Connector/C plugin DLLs such as `sha256_password.dll`.
-
-## [2.0.0] - 2026-10-04
+## [2.0.0] - 2026-10-05
 
 ### Changed
 
-- **DLL boundary** — Hid the prepared-statement STL map behind an opaque `Safe::Unique` owner allocated on Base's heap, keeping the map and its allocator inside the Database DLL.
+- **DLL boundary** — Hardened provider-owned storage while preserving inheritable database facades:
+	- Hid the prepared-statement registry behind an opaque `Safe::Unique` owner on Base's heap and migrated its entries to `Safe::Map<Safe::String, Safe::Shared<Safe::Unique<PreparedSTMT>>>`. Creator-module callbacks retain map nodes and allocator state; copyable handles keep each statement uniquely owned without changing inheritable factories returning `Safe::Unique`.
+	- Column names and prepared-statement names and SQL text use `Safe::String`, so inline accessors no longer interpret another module's standard strings.
+	- SQLite's protected native-path constructors convert to Base-owned UTF-8 in forced-inline caller adapters; rvalue paths no longer transfer caller STL allocations to the Database DLL, and Windows paths use SQLite's UTF-8 encoding.
+	- Exported values, rows, transactions, database facades, prepared statements and telemetry declare `STORMBYTE_DECLARE_MAYBE_SAFE` with compatible-ABI and provider-lifetime requirements. Consumer derivatives remain responsible for their additional state and their own conditional declaration.
 - **MSSQL backend** — Added an optional Microsoft SQL Server backend using the LGPL FreeTDS DB-Library client. Bundled builds compile only the static DB-Library and its required TDS support archives; logical prepared statements use `sp_executesql` RPC with typed, separately transmitted parameters.
 - **StormByte Suite port** — Migrated first-party repository and documentation links to StormByte-Suite, removed the retired String repository from the suite listing and Doxygen tag references, and updated the Logger and BuildMaster submodule URLs.
 - **Database API and connection behavior**
@@ -47,12 +40,20 @@ If you landed here from a release link and have not read the tree:
 	- **Breaking**: Added shared telemetry state to exported `Database` and `PreparedSTMT` objects; rebuild consumers against this ABI revision.
 	- **Breaking**: `Value::Type::LongInteger` and `Value::Type::UnsignedLongInteger` now store `long long int` and `unsigned long long int`, so they are 64-bit on every platform; use `Get<long long int>()` / `Get<unsigned long long int>()`. `long int` and `unsigned long int` are still accepted when constructing values.
 	- Serialized operations on each built-in connection. RAII transactions hold exclusive connection access through commit or rollback and must remain on their creating thread.
-- **Telemetry** — Added thread-safe operation counts, success/failure totals, returned-row counts, latency aggregates, backend error/warning categories, retained `StormByte::Safe::Shared` snapshots, and `StormByte::Safe::String` / `std::string` flattening for SQLite, PostgreSQL and MariaDB. Database telemetry now derives from `StormByte::Telemetry` and measures operations with its named clocks.
-- **Build and distribution** — Ported the library to BuildMaster 2 HOST with shared/static selection. Static consumers receive flattened private vendor dependencies; vendor archives do not need repacking. Updated Doxygen configuration for StormByte Base and Logger 2.0 and the dual-license terms.
-- **Robustness tests** — Expanded tests for numeric boundaries, Row/Rows value semantics, backend scalar and binary round-trips, transaction rollback, prepared-statement failures, same-connection concurrency, and an installed external consumer.
+- **Telemetry** — Added thread-safe operation counts, success/failure totals, returned-row counts, latency aggregates, backend error/warning categories, retained `StormByte::Safe::Shared` snapshots, and `StormByte::Safe::String` / `std::string` flattening for SQLite, PostgreSQL and MariaDB. Database telemetry derives from `StormByte::Telemetry` and uses independent best-effort `Clock::Sample` measurements, removing obsolete per-category locks and cumulative-time subtraction. Same-category samples can overlap or nest, and clock snapshots use `GetValues()`. Concurrent readers see zero rather than an uninitialized minimum-latency sentinel while the first result is being published.
+- **Build and distribution** — Ported the library to BuildMaster 2 HOST with shared/static selection. Static consumers receive flattened private vendor dependencies; vendor archives do not need repacking. Updated Doxygen configuration for StormByte Base and Logger 2.0 and the dual-license terms. Dependency tags and generated cross-links use verified HTTPS endpoints; preprocessing recognizes the Safe declaration and caller-inline macros. Doxygen generation was checked with warnings treated as errors without persisting that validation policy in CMake.
+- **Robustness tests** — Expanded tests for numeric boundaries, Row/Rows value semantics, backend scalar and binary round-trips, transaction rollback, prepared-statement failures, registry duplicates and cleanup with long names, same-connection concurrency, overlapping telemetry samples, Safe classification, and an installed external consumer using Safe collections and inherited SQLite path constructors.
 
 ### Fixed
 
+- **MSSQL backend** — Fixed result and statement handling across FreeTDS versions:
+	- Zero-length text and binary values are returned as empty values instead of being padded by `dbconvert()`.
+	- Connections enable `QUOTED_IDENTIFIER`, so double-quoted identifiers resolve as identifiers on older DB-Library releases.
+	- NULL prepared-statement parameters are sent as untyped `NULL`, allowing them in any column type such as `VARBINARY(MAX)`.
+	- SQL Server error messages are kept instead of DB-Library's generic notice, and `Telemetry::Errors()` now counts them.
+- **Windows bundled OpenSSL consumers** — Nested builds now link `ws2_32` and `crypt32` alongside the static bundled OpenSSL:
+	- PostgreSQL's Meson configure, so its OpenSSL function checks succeed.
+	- MariaDB Connector/C plugin DLLs such as `sha256_password.dll`.
 - **Bundled TLS backends** — Build one pinned OpenSSL 3.5.9 for bundled FreeTDS, MariaDB Connector C and PostgreSQL instead of relying on host OpenSSL libraries.
 - **MSSQL behavior tests** — Query the fixture's temporary tables with SQL Server syntax, distinguish empty values from SQL NULL using DB-Library indicators, use the MAX binary RPC type, and set the text-size limit so large LOB values are not truncated.
 - **Base 2.0 and backend diagnostics**

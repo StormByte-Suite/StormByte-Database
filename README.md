@@ -198,6 +198,14 @@ std::string snapshot = static_cast<std::string>(*telemetry);
 
 Telemetry records operation attempts, successes/failures, total/minimum/mean/maximum latency, rows returned, and categorized backend events. It does not retain SQL text or bind values. Its getters are safe to call while operations run; snapshots may reflect updates that complete during the read. The `Shared` handle owns the same cumulative telemetry object and remains valid after the database is disconnected or destroyed.
 
+### DLL Boundary Contract
+
+Exported Database types declare `STORMBYTE_DECLARE_MAYBE_SAFE`: allocation ownership is preserved, but C++ consumers must use a compatible compiler, standard-library ABI and build configuration. Base, Logger, Database and any consumer module providing callbacks or derived objects must remain loaded while those objects exist.
+
+Database facades keep their protected constructors and virtual hooks for application inheritance. A consumer derivative is not automatically classified as `MaybeSafe`; it must preserve the lifetime and ownership contract for its added state and declare the macro at global scope after its complete definition when used with Safe components. Copyable `Value`, `Row` and `Rows` can be used in Base Safe collections. Non-copyable facades should be retained through Safe owners.
+
+SQLite native-path constructors convert to owned UTF-8 inside the caller before entering Database, including for temporary paths. Telemetry uses independent Base clock samples, so measurements of the same operation may overlap or nest without external clock locks.
+
 ## Contributing
 
 ## Support

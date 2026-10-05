@@ -128,7 +128,10 @@ namespace StormByte {
 				}
 
 			private:
-				std::string m_name; ///< Column name
+				StormByte::Safe::String m_name; ///< DLL-safe column name
 		};
 	}
 }
+
+/** @brief Conditional DLL safety requires a compatible ABI and live Database module; derivatives must preserve module-owned lifetime. */
+STORMBYTE_DECLARE_MAYBE_SAFE(StormByte::Database::NamedValue);

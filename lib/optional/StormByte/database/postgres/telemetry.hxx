@@ -40,3 +40,6 @@ namespace StormByte::Database::Postgres {
 			std::atomic<std::uint64_t> m_connection_errors{0}; ///< Connection-class SQLSTATEs.
 	};
 }
+
+/** @brief Conditional DLL safety requires compatible ABIs and live Base and Database modules. */
+STORMBYTE_DECLARE_MAYBE_SAFE(StormByte::Database::Postgres::Telemetry);

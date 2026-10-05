@@ -254,3 +254,6 @@ namespace StormByte {
 		};
 	}
 }
+
+/** @brief Conditional DLL safety requires a compatible ABI and live Database module; storage operations remain in Database. */
+STORMBYTE_DECLARE_MAYBE_SAFE(StormByte::Database::Rows);

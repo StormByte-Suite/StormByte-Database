@@ -40,15 +40,15 @@
  */
 
 #include <StormByte/database/database.hxx>
+#include <StormByte/safe/map.hxx>
 #include <exception>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 
 using namespace StormByte::Database;
 
 struct Database::PreparedStatements {
-	std::unordered_map<std::string, StormByte::Safe::Unique<PreparedSTMT>> values;
+	StormByte::Safe::Map<StormByte::Safe::String, StormByte::Safe::Shared<StormByte::Safe::Unique<PreparedSTMT>>> values;
 };
 
 Database::Database(const StormByte::Safe::Shared<Logger::Log>& logger):
@@ -111,8 +111,11 @@ void Database::ClearPreparedSTMTs() noexcept {
 PreparedSTMT* Database::FindPreparedSTMT(std::string_view name) {
 	if (!m_prepared_stmts)
 		return nullptr;
-	auto it = m_prepared_stmts->values.find(std::string{name});
-	return it == m_prepared_stmts->values.end() ? nullptr : it->second.get();
+	auto it = m_prepared_stmts->values.find(StormByte::Safe::String{name});
+	if (it == m_prepared_stmts->values.end())
+		return nullptr;
+	const StormByte::Safe::Shared<StormByte::Safe::Unique<PreparedSTMT>> owner = it->second;
+	return owner ? owner->get() : nullptr;
 }
 bool Database::Connect() noexcept {
 	auto telemetry = TrackOperation(Operation::Connect);
@@ -165,7 +168,9 @@ void Database::DoPrepareSTMT(std::string_view name, std::string_view query) noex
 		m_prepared_stmts = StormByte::Safe::Unique<PreparedStatements>::MakePointer<PreparedStatements>();
 	StormByte::Safe::Unique<PreparedSTMT> prepared = CreatePreparedSTMT(name, query);
 	if (prepared) {
-		auto [position, inserted] = m_prepared_stmts->values.emplace(std::string{prepared->Name()}, std::move(prepared));
+		const StormByte::Safe::String statement_name{prepared->Name()};
+		auto owner = StormByte::Safe::Shared<StormByte::Safe::Unique<PreparedSTMT>>::MakePointer<StormByte::Safe::Unique<PreparedSTMT>>(std::move(prepared));
+		auto [position, inserted] = m_prepared_stmts->values.emplace(statement_name, std::move(owner));
 		(void)position;
 		telemetry.Complete(inserted);
 	}

@@ -40,3 +40,6 @@ namespace StormByte::Database::MariaDB {
 			std::atomic<std::uint64_t> m_warnings{0}; ///< Warning event count.
 	};
 }
+
+/** @brief Conditional DLL safety requires compatible ABIs and live Base and Database modules. */
+STORMBYTE_DECLARE_MAYBE_SAFE(StormByte::Database::MariaDB::Telemetry);

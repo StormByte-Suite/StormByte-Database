@@ -12,7 +12,6 @@
 #include <StormByte/safe/pointers.hxx>
 #include <StormByte/safe/string.hxx>
 #include <StormByte/telemetry.hxx>
-#include <StormByte/thread_lock.hxx>
 
 #include <array>
 #include <atomic>
@@ -135,8 +134,7 @@ namespace StormByte {
 				private:
 					StormByte::Safe::Shared<Telemetry> m_telemetry; ///< Keeps the measured telemetry object alive.
 					Operation m_operation; ///< Operation category.
-					std::chrono::microseconds m_started; ///< Base clock total before this interval.
-					bool m_clock_started; ///< Whether this scope started a Base clock.
+					StormByte::Clock::Sample m_sample; ///< Independent Base clock measurement for this operation.
 					std::uint64_t m_rows_returned; ///< Rows reported by Complete().
 					bool m_success; ///< Result reported by Complete().
 					bool m_completed; ///< Whether Complete() has been called.
@@ -210,8 +208,6 @@ namespace StormByte {
 				friend class PreparedSTMT;
 				friend class OperationScope;
 
-				mutable std::array<StormByte::ThreadLock, static_cast<std::size_t>(Operation::Count)> m_clock_locks; ///< Protect each Base clock while an interval is active.
-
 				/**
 				 * @struct Counter
 				 * @brief Atomic aggregates for one operation category.
@@ -238,3 +234,9 @@ namespace StormByte {
 		};
 	}
 }
+
+/** @brief Conditional DLL safety requires compatible ABIs and live provider modules; derived telemetry must preserve Safe ownership. */
+STORMBYTE_DECLARE_MAYBE_SAFE(StormByte::Database::Telemetry);
+
+/** @brief Conditional DLL safety requires compatible ABIs and live provider modules until the measurement is recorded. */
+STORMBYTE_DECLARE_MAYBE_SAFE(StormByte::Database::Telemetry::OperationScope);

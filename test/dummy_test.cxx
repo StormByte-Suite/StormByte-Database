@@ -44,9 +44,12 @@
 #include <StormByte/database/rows.hxx>
 #include <StormByte/database/telemetry.hxx>
 #include <StormByte/database/value.hxx>
+#include <StormByte/safe/optional.hxx>
+#include <StormByte/safe/vector.hxx>
 #include <StormByte/test_handlers.h>
 
 #include <iostream>
+#include <atomic>
 #include <cmath>
 #include <limits>
 #include <string>
@@ -55,6 +58,12 @@
 #include <vector>
 
 using namespace StormByte::Database;
+
+static_assert(StormByte::Type::MaybeSafe<Value>);
+static_assert(StormByte::Type::MaybeSafe<NamedValue>);
+static_assert(StormByte::Type::SafeValue<Row>);
+static_assert(StormByte::Type::SafeValue<Rows>);
+static_assert(StormByte::Type::SafeComponent<StormByte::Safe::Shared<Telemetry>>);
 
 class TestTelemetry : public Telemetry {
 	public:
@@ -254,6 +263,15 @@ int test_telemetry_operation_metrics() {
 	ASSERT_TRUE(fn_name, static_cast<std::string>(*telemetry).find("Query{calls=2") != std::string::npos);
 
 	auto concurrent_telemetry = StormByte::Safe::Shared<TestTelemetry>::MakePointer<TestTelemetry>();
+	std::atomic<bool> stop_reader{false};
+	std::atomic<bool> invalid_minimum{false};
+	std::thread reader([&]() {
+		while (!stop_reader.load(std::memory_order_acquire)) {
+			const auto snapshot = concurrent_telemetry->Metrics(Operation::PreparedStatement);
+			if (snapshot.MinimumNanoseconds == std::numeric_limits<std::uint64_t>::max())
+				invalid_minimum.store(true, std::memory_order_relaxed);
+		}
+	});
 	constexpr int thread_count = 8;
 	constexpr int operations_per_thread = 500;
 	std::vector<std::thread> threads;
@@ -267,10 +285,39 @@ int test_telemetry_operation_metrics() {
 	}
 	for (auto& thread : threads)
 		thread.join();
+	stop_reader.store(true, std::memory_order_release);
+	reader.join();
+	ASSERT_TRUE(fn_name, !invalid_minimum.load(std::memory_order_relaxed));
 	const OperationMetrics concurrent_metrics = concurrent_telemetry->Metrics(Operation::PreparedStatement);
 	ASSERT_EQUAL(fn_name, thread_count * operations_per_thread, concurrent_metrics.Attempts);
 	ASSERT_EQUAL(fn_name, thread_count * operations_per_thread, concurrent_metrics.Successes);
 	ASSERT_EQUAL(fn_name, thread_count * operations_per_thread, concurrent_telemetry->RowsReturned());
+	RETURN_TEST(fn_name, 0);
+}
+
+int test_telemetry_overlapping_samples() {
+	constexpr std::string_view fn_name = "test_telemetry_overlapping_samples";
+	auto telemetry = StormByte::Safe::Shared<TestTelemetry>::MakePointer<TestTelemetry>();
+	{
+		Telemetry::OperationScope outer{telemetry, Operation::Query};
+		ASSERT_EQUAL(fn_name, std::uint64_t{0}, telemetry->Metrics(Operation::Query).Attempts);
+		{
+			Telemetry::OperationScope inner{telemetry, Operation::Query};
+			inner.Complete(true, 2);
+		}
+		ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Metrics(Operation::Query).Attempts);
+		outer.Complete(false);
+	}
+	const auto metrics = telemetry->Metrics(Operation::Query);
+	ASSERT_EQUAL(fn_name, std::uint64_t{2}, metrics.Attempts);
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, metrics.Successes);
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, metrics.Failures);
+	ASSERT_EQUAL(fn_name, std::uint64_t{2}, telemetry->RowsReturned());
+	{
+		Telemetry::OperationScope ignored{telemetry, Operation::Count};
+		Telemetry::OperationScope empty{{}, Operation::Query};
+	}
+	ASSERT_EQUAL(fn_name, std::uint64_t{2}, telemetry->Metrics(Operation::Query).Attempts);
 	RETURN_TEST(fn_name, 0);
 }
 
@@ -281,6 +328,7 @@ int main() {
 	result += test_value_variants_and_numeric_boundaries();
 	result += test_row_and_rows_value_semantics();
 	result += test_telemetry_operation_metrics();
+	result += test_telemetry_overlapping_samples();
 	if (result == 0) {
 		std::cout << "All tests passed successfully.\n";
 	} else {

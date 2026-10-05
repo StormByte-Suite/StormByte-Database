@@ -136,3 +136,6 @@ namespace StormByte {
 		};
 	}
 }
+
+/** @brief Conditional DLL safety requires a live Database and compatible ABI; the transaction stays on its creating thread. */
+STORMBYTE_DECLARE_MAYBE_SAFE(StormByte::Database::Transaction);

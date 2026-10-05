@@ -176,8 +176,8 @@ namespace StormByte {
 				}
 
 			private:
-								std::string m_name;			///< Statement name, owned by Database
-								std::string m_query;			///< SQL text, owned by Database
+				StormByte::Safe::String m_name;	///< DLL-safe statement name
+				StormByte::Safe::String m_query;	///< DLL-safe SQL text
 				/**
 				 * @brief Backend bind.
 				 * @param index Parameter index (0-based).
@@ -198,3 +198,6 @@ namespace StormByte {
 		};
 	}
 }
+
+/** @brief Conditional DLL safety requires compatible ABIs and live provider modules; derived statements must preserve Safe ownership. */
+STORMBYTE_DECLARE_MAYBE_SAFE(StormByte::Database::PreparedSTMT);

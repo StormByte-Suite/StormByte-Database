@@ -1,4 +1,7 @@
 #include <StormByte/database/value.hxx>
+#include <StormByte/database/rows.hxx>
+#include <StormByte/safe/optional.hxx>
+#include <StormByte/safe/vector.hxx>
 
 #include <string>
 
@@ -14,13 +17,29 @@ class ConsumerDatabase
 #if defined(STORMBYTE_TEST_SQLITE)
 	public:
 		ConsumerDatabase() : SQLite3(StormByte::Safe::Shared<StormByte::Logger::Log>{}) {}
+		ConsumerDatabase(const std::filesystem::path& path)
+			: SQLite3(path, StormByte::Safe::Shared<StormByte::Logger::Log>{}) {}
+		ConsumerDatabase(std::filesystem::path&& path)
+			: SQLite3(std::move(path), StormByte::Safe::Shared<StormByte::Logger::Log>{}) {}
 #endif
 };
+
+#if defined(STORMBYTE_TEST_SQLITE)
+STORMBYTE_DECLARE_MAYBE_SAFE(ConsumerDatabase);
+static_assert(StormByte::Type::MaybeSafe<StormByte::Database::SQLite::SQLite3>);
+static_assert(StormByte::Type::SafeComponent<StormByte::Safe::Shared<ConsumerDatabase>>);
+#endif
+
+static_assert(StormByte::Type::MaybeSafe<StormByte::Database::Value>);
+static_assert(StormByte::Type::SafeValue<StormByte::Database::Rows>);
 
 int main() {
 	StormByte::Database::Value value{42};
 	if (value.Get<int>() != 42)
 		return 1;
+	StormByte::Safe::Optional<StormByte::Database::Value> stored{value};
+	if (!stored || stored.value().Get<int>() != 42)
+		return 8;
 
 #if defined(STORMBYTE_TEST_SQLITE)
 	ConsumerDatabase db;
@@ -41,6 +60,17 @@ int main() {
 	if (!transaction)
 		return 7;
 	transaction->Rollback();
+	StormByte::Safe::Vector<StormByte::Database::Rows> snapshots{*rows};
+	const StormByte::Database::Rows snapshot = snapshots[0];
+	if (snapshots.size() != 1 || snapshot[0][0].Get<int>() != 42)
+		return 9;
+	const std::filesystem::path borrowed_path{":memory:"};
+	ConsumerDatabase borrowed{borrowed_path};
+	if (!borrowed.Connect() || borrowed_path != ":memory:")
+		return 10;
+	ConsumerDatabase temporary{std::filesystem::path{":memory:"}};
+	if (!temporary.Connect())
+		return 11;
 #endif
 	return 0;
 }

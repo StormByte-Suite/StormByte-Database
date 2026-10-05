@@ -41,3 +41,6 @@ namespace StormByte::Database::SQLite {
 			std::atomic<std::uint64_t> m_io_errors{0}; ///< I/O results.
 	};
 }
+
+/** @brief Conditional DLL safety requires compatible ABIs and live Base and Database modules. */
+STORMBYTE_DECLARE_MAYBE_SAFE(StormByte::Database::SQLite::Telemetry);

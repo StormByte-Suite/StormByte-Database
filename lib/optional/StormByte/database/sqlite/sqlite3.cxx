@@ -56,13 +56,9 @@ namespace {
 }
 
 SQLite3::SQLite3(const StormByte::Safe::Shared<Logger::Log>& logger)
-	: SQLite3(":memory:", logger) {}
-SQLite3::SQLite3(const std::filesystem::path& dbfile, const StormByte::Safe::Shared<Logger::Log>& logger)
+	: SQLite3(StormByte::Safe::String(":memory:"), logger, Utf8Path{}) {}
+SQLite3::SQLite3(const StormByte::Safe::String& dbfile, const StormByte::Safe::Shared<Logger::Log>& logger, Utf8Path)
 	: Database(logger), m_database_file(dbfile), m_database(nullptr) {
-	SetTelemetry(StormByte::Safe::Shared<StormByte::Database::Telemetry>::MakePointer<StormByte::Database::SQLite::Telemetry>());
-}
-SQLite3::SQLite3(std::filesystem::path&& dbfile, const StormByte::Safe::Shared<Logger::Log>& logger)
-	: Database(logger), m_database_file(std::move(dbfile)), m_database(nullptr) {
 	SetTelemetry(StormByte::Safe::Shared<StormByte::Database::Telemetry>::MakePointer<StormByte::Database::SQLite::Telemetry>());
 }
 
@@ -108,7 +104,7 @@ bool SQLite3::DoConnect() noexcept {
 		++g_sqlite_refcount;
 	}
 
-	if (sqlite3_open(m_database_file.string().c_str(), &m_database) != SQLITE_OK) {
+	if (sqlite3_open(static_cast<const char*>(m_database_file), &m_database) != SQLITE_OK) {
 		if (m_logger) {
 			*m_logger << Logger::Level::Error << "sqlite3_open failed: "
 					<< (m_database ? sqlite3_errmsg(m_database) : "unknown") << std::endl;

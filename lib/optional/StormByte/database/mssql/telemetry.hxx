@@ -55,3 +55,6 @@ namespace StormByte {
 		}
 	}
 }
+
+/** @brief Conditional DLL safety requires compatible ABIs and live Base and Database modules. */
+STORMBYTE_DECLARE_MAYBE_SAFE(StormByte::Database::MSSQL::Telemetry);

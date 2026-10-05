@@ -75,6 +75,7 @@ namespace {
 class TestMemoryDatabase : public SQLite3 {
 	public:
 		TestMemoryDatabase() : SQLite3(logger) {}
+		void RegisterStatement(std::string_view name, std::string_view query) { DoPrepareSTMT(name, query); }
 		const ExpectedRows get_users() { return ExecuteSTMT("select_users"); }
 		const ExpectedRows get_products() { return ExecuteSTMT("select_products"); }
 		const ExpectedRows get_orders() { return ExecuteSTMT("select_orders"); }
@@ -765,6 +766,27 @@ int telemetry_tracks_sqlite_operations_and_survives_database() {
 	RETURN_TEST(fn_name, 0);
 }
 
+int prepared_registry_preserves_unique_statements() {
+	constexpr std::string_view fn_name = "prepared_registry_preserves_unique_statements";
+	TestMemoryDatabase db;
+	ASSERT_TRUE(fn_name, db.Connect());
+	const std::string name(512, 's');
+	db.RegisterStatement(name, "SELECT 17;");
+	db.RegisterStatement(name, "SELECT 29;");
+	const auto first = db.ExecuteSTMT(name);
+	ASSERT_TRUE(fn_name, first.has_value());
+	ASSERT_EQUAL(fn_name, 17, (*first)[0][0].Get<int>());
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, db.GetTelemetry()->Metrics(StormByte::Database::Operation::PrepareStatement).Failures);
+	db.Disconnect();
+	ASSERT_TRUE(fn_name, db.Connect());
+	ASSERT_TRUE(fn_name, !db.ExecuteSTMT(name));
+	db.RegisterStatement(name, "SELECT 31;");
+	const auto replaced = db.ExecuteSTMT(name);
+	ASSERT_TRUE(fn_name, replaced.has_value());
+	ASSERT_EQUAL(fn_name, 31, (*replaced)[0][0].Get<int>());
+	RETURN_TEST(fn_name, 0);
+}
+
 int main() {
 	int result = 0;
 	result += not_connected_query();
@@ -793,6 +815,7 @@ int main() {
 	result += null_value_test();
 	result += bind_null_test();
 	result += unknown_stmt_test();
+	result += prepared_registry_preserves_unique_statements();
 	result += name_access_test();
 	result += name_access_missing_column();
 	result += transaction_commit_test();

@@ -43,16 +43,12 @@ Telemetry::Telemetry() noexcept:
 Telemetry::~Telemetry() noexcept = default;
 
 Telemetry::OperationScope::OperationScope(StormByte::Safe::Shared<Telemetry> telemetry, const Operation operation) noexcept:
-	m_telemetry(std::move(telemetry)), m_operation(operation), m_started{}, m_clock_started(false),
+	m_telemetry(std::move(telemetry)), m_operation(operation),
 	m_rows_returned(0), m_success(false), m_completed(false) {
 	const auto index = static_cast<std::size_t>(operation);
 	if (!m_telemetry || index >= operation_names.size())
 		return;
-	m_telemetry->m_clock_locks[index].Lock();
-	StormByte::Clock& clock = m_telemetry->StormByte::Telemetry::Clock(operation_names[index]);
-	m_started = clock.Time();
-	clock.Start();
-	m_clock_started = true;
+	m_sample = m_telemetry->MeasureClock(operation_names[index]);
 }
 
 void Telemetry::OperationScope::Complete(const bool success, const std::uint64_t rows_returned) noexcept {
@@ -66,13 +62,9 @@ void Telemetry::OperationScope::Complete(const bool success, const std::uint64_t
 Telemetry::OperationScope::~OperationScope() noexcept {
 	if (!m_telemetry)
 		return;
-	if (m_clock_started) {
-		const auto index = static_cast<std::size_t>(m_operation);
-		StormByte::Clock& clock = m_telemetry->StormByte::Telemetry::Clock(operation_names[index]);
-		clock.Stop();
-		const auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(clock.Time() - m_started);
+	if (m_sample.Active()) {
+		const auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(m_sample.Stop());
 		m_telemetry->RecordOperation(m_operation, m_success, elapsed, m_rows_returned);
-		m_telemetry->m_clock_locks[index].Unlock();
 	}
 }
 
@@ -80,10 +72,10 @@ OperationMetrics Telemetry::Metrics(const Operation operation) const noexcept {
 	const auto index = static_cast<std::size_t>(operation);
 	if (index >= m_operations.size())
 		return {};
-	m_clock_locks[index].Lock();
 	const StormByte::Clock& clock = StormByte::Telemetry::Clock(operation_names[index]);
-	const std::uint64_t attempts = clock.Count();
-	const auto total = std::chrono::duration_cast<std::chrono::nanoseconds>(clock.Time());
+	const auto values = clock.GetValues();
+	const std::uint64_t attempts = values.Count;
+	const auto total = std::chrono::duration_cast<std::chrono::nanoseconds>(values.Time);
 	const Counter& counter = m_operations[index];
 	const std::uint64_t minimum = counter.minimum_nanoseconds.load(std::memory_order_acquire);
 	const OperationMetrics metrics{
@@ -91,10 +83,9 @@ OperationMetrics Telemetry::Metrics(const Operation operation) const noexcept {
 		counter.successes.load(std::memory_order_acquire),
 		counter.failures.load(std::memory_order_acquire),
 		static_cast<std::uint64_t>(total.count()),
-		attempts == 0 ? 0 : minimum,
+		attempts == 0 || minimum == std::numeric_limits<std::uint64_t>::max() ? 0 : minimum,
 		counter.maximum_nanoseconds.load(std::memory_order_acquire)
 	};
-	m_clock_locks[index].Unlock();
 	return metrics;
 }
 

@@ -176,3 +176,6 @@ namespace StormByte {
 					void DoBeginTransaction(IsolationLevel level) override;
 			};
 		}	}}
+
+/** @brief Conditional DLL safety requires compatible ABIs and live provider modules; derived facades must preserve Safe ownership. */
+STORMBYTE_DECLARE_MAYBE_SAFE(StormByte::Database::MariaDB::MariaDB);
