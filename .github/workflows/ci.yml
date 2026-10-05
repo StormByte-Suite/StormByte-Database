@@ -78,8 +78,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        compiler: [gcc, clang]
+        compiler: [gcc, clang, clang-libc++]
         dependencies: [OFF, BUNDLED, SYSTEM]
+        exclude:
+          - compiler: clang-libc++
+            dependencies: SYSTEM
 
     name: linux-${{ matrix.compiler }}-${{ matrix.dependencies }}
 
@@ -278,6 +281,7 @@ jobs:
             -DWITH_MSSQL=${{ matrix.dependencies }}
             ${{ matrix.dependencies != 'OFF' && format('-DWITH_OPENSSL={0}', matrix.dependencies) || '' }}
             -DWITH_STORMBYTE=BUNDLED
+            ${{ matrix.compiler == 'clang-libc++' && '-DCMAKE_CXX_FLAGS=-stdlib=libc++' || '' }}
           run-tests: true
           ctest-options: --output-on-failure --test-dir ${{ github.workspace }}/build/test
 
