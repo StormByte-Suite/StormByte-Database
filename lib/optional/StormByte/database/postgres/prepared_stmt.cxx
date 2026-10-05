@@ -122,7 +122,10 @@ StormByte::Database::ExpectedRows PreparedSTMT::DoExecute() {
 				break;
 			case Value::Type::Text: {
 				const auto text = value.Get<StormByte::Safe::String>();
-				string_storage[stl_index] = static_cast<std::string_view>(text);
+				const std::string_view text_view = text;
+				if (text_view.find('\0') != std::string_view::npos)
+					return Unexpected<ExecuteError>("PostgreSQL text bind contains an embedded NUL character");
+				string_storage[stl_index] = text_view;
 				break;
 			}
 			case Value::Type::Blob: {
@@ -145,7 +148,7 @@ StormByte::Database::ExpectedRows PreparedSTMT::DoExecute() {
 		params[stl_index] = string_storage[stl_index].c_str();
 	}
 
-	PGresult* res = PQexecPrepared(m_conn, m_stmt_name.c_str(), parameter_count_int, params.data(), lengths.data(), formats.data(), 0);
+	PGresult* res = PQexecPrepared(m_conn, m_stmt_name.Bytes(), parameter_count_int, params.data(), lengths.data(), formats.data(), 0);
 	if (!res) {
 		RecordBackendEvent(BackendEvent::Connection);
 		return Unexpected<ExecuteError>("Null PGresult from PQexecPrepared");

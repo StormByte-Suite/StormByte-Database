@@ -66,7 +66,7 @@ class TestDatabase : public MariaDB {
 	public:
 		TestDatabase()
 			: MariaDB("127.0.0.1", "testuser", "testpass", "stormbyte_test", 3306, logger) {
-			SetSslMode(SslMode::Disable);
+			SslMode(SslMode::Disable);
 		}
 
 		const ExpectedRows get_users() { return ExecuteSTMT("select_users"); }
@@ -129,7 +129,7 @@ class ConcurrentDatabase : public MariaDB {
 	public:
 		ConcurrentDatabase()
 			: MariaDB("127.0.0.1", "testuser", "testpass", "stormbyte_test", 3306, logger) {
-			SetSslMode(SslMode::Disable);
+			SslMode(SslMode::Disable);
 		}
 
 	private:
@@ -144,9 +144,9 @@ int not_connected_query() {
 	TestDatabase db;
 	auto res = db.Query("SELECT 1;");
 	ASSERT_FALSE(fn_name, res.has_value());
-	auto telemetry = db.GetTelemetry();
-	ASSERT_EQUAL(fn_name, 1, telemetry->Metrics(StormByte::Database::Operation::Query).Failures);
-	ASSERT_EQUAL(fn_name, 1, telemetry->Events(StormByte::Database::BackendEvent::Connection));
+	auto telemetry = db.Telemetry();
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::Query).Failures);
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Events(StormByte::Database::BackendEvent::Connection));
 	RETURN_TEST(fn_name, 0);
 }
 
@@ -717,7 +717,7 @@ int telemetry_tracks_mariadb_operations_and_survives_database() {
 	std::uint64_t warnings_before{};
 	{
 		TestDatabase db;
-		retained = db.GetTelemetry();
+		retained = db.Telemetry();
 		ASSERT_TRUE(fn_name, retained != nullptr);
 		ASSERT_TRUE(fn_name, dynamic_cast<StormByte::Database::MariaDB::Telemetry*>(retained.get()) != nullptr);
 		ASSERT_TRUE(fn_name, db.Connect());
@@ -739,25 +739,25 @@ int telemetry_tracks_mariadb_operations_and_survives_database() {
 
 	const auto* telemetry = dynamic_cast<const StormByte::Database::MariaDB::Telemetry*>(retained.get());
 	ASSERT_TRUE(fn_name, telemetry != nullptr);
-	ASSERT_EQUAL(fn_name, 1, telemetry->Metrics(StormByte::Database::Operation::Connect).Successes);
-	ASSERT_EQUAL(fn_name, 2, telemetry->Metrics(StormByte::Database::Operation::Disconnect).Successes);
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::Connect).Successes);
+	ASSERT_EQUAL(fn_name, std::uint64_t{2}, telemetry->Metrics(StormByte::Database::Operation::Disconnect).Successes);
 	const auto query = telemetry->Metrics(StormByte::Database::Operation::Query);
-	ASSERT_EQUAL(fn_name, 2, query.Attempts);
-	ASSERT_EQUAL(fn_name, 1, query.Successes);
-	ASSERT_EQUAL(fn_name, 1, query.Failures);
+	ASSERT_EQUAL(fn_name, std::uint64_t{2}, query.Attempts);
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, query.Successes);
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, query.Failures);
 	ASSERT_TRUE(fn_name, query.MinimumNanoseconds <= query.MeanNanoseconds());
 	ASSERT_TRUE(fn_name, query.MeanNanoseconds() <= query.MaximumNanoseconds);
-	ASSERT_EQUAL(fn_name, 3, telemetry->RowsReturned());
-	ASSERT_EQUAL(fn_name, 1, telemetry->Metrics(StormByte::Database::Operation::PreparedStatement).Failures);
-	ASSERT_EQUAL(fn_name, 1, telemetry->Metrics(StormByte::Database::Operation::PreparedStatement).Successes);
+	ASSERT_EQUAL(fn_name, std::uint64_t{3}, telemetry->RowsReturned());
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::PreparedStatement).Failures);
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::PreparedStatement).Successes);
 	const auto prepare_metrics = telemetry->Metrics(StormByte::Database::Operation::PrepareStatement);
 	ASSERT_TRUE(fn_name, prepare_metrics.Attempts > 0);
 	ASSERT_EQUAL(fn_name, prepare_metrics.Attempts, prepare_metrics.Successes);
-	ASSERT_EQUAL(fn_name, 1, telemetry->Metrics(StormByte::Database::Operation::SilentQuery).Failures);
-	ASSERT_EQUAL(fn_name, 2, telemetry->Metrics(StormByte::Database::Operation::BeginTransaction).Successes);
-	ASSERT_EQUAL(fn_name, 1, telemetry->Metrics(StormByte::Database::Operation::CommitTransaction).Successes);
-	ASSERT_EQUAL(fn_name, 1, telemetry->Metrics(StormByte::Database::Operation::RollbackTransaction).Successes);
-	ASSERT_EQUAL(fn_name, 1, telemetry->Events(StormByte::Database::BackendEvent::Constraint));
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::SilentQuery).Failures);
+	ASSERT_EQUAL(fn_name, std::uint64_t{2}, telemetry->Metrics(StormByte::Database::Operation::BeginTransaction).Successes);
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::CommitTransaction).Successes);
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::RollbackTransaction).Successes);
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Events(StormByte::Database::BackendEvent::Constraint));
 	ASSERT_TRUE(fn_name, telemetry->Deadlocks() == 0);
 	ASSERT_EQUAL(fn_name, warnings_before + 1, telemetry->Warnings());
 	ASSERT_TRUE(fn_name, static_cast<std::string>(*retained).find("MariaDB{") != std::string::npos);

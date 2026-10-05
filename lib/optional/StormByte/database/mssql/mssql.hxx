@@ -80,13 +80,13 @@ namespace StormByte {
 
 				private:
 					friend class PreparedSTMT;
-					std::string m_host; ///< SQL Server host.
-					std::string m_user; ///< SQL Server login.
-					std::string m_password; ///< SQL Server password.
-					std::string m_database; ///< Initial database name.
+					StormByte::Safe::String m_host; ///< Base-owned SQL Server host.
+					StormByte::Safe::String m_user; ///< Base-owned SQL Server login.
+					StormByte::Safe::String m_password; ///< Base-owned SQL Server password.
+					StormByte::Safe::String m_database; ///< Base-owned initial database name.
 					int m_port; ///< SQL Server TCP port.
 					struct tds_dblib_dbprocess* m_connection; ///< FreeTDS DBPROCESS handle.
-					std::string m_last_error; ///< Most recent DB-Library callback error.
+					StormByte::Safe::String m_last_error; ///< Base-owned most recent DB-Library callback error.
 
 					/** @brief Open the DB-Library connection. @return Whether login succeeded. */
 					bool DoConnect() noexcept override;

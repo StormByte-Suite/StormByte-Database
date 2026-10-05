@@ -59,7 +59,7 @@ SQLite3::SQLite3(const StormByte::Safe::Shared<Logger::Log>& logger)
 	: SQLite3(StormByte::Safe::String(":memory:"), logger, Utf8Path{}) {}
 SQLite3::SQLite3(const StormByte::Safe::String& dbfile, const StormByte::Safe::Shared<Logger::Log>& logger, Utf8Path)
 	: Database(logger), m_database_file(dbfile), m_database(nullptr) {
-	SetTelemetry(StormByte::Safe::Shared<StormByte::Database::Telemetry>::MakePointer<StormByte::Database::SQLite::Telemetry>());
+	Telemetry(StormByte::Safe::Shared<StormByte::Database::Telemetry>::MakePointer<StormByte::Database::SQLite::Telemetry>());
 }
 
 SQLite3::SQLite3(SQLite3&& db) noexcept
@@ -90,6 +90,8 @@ bool SQLite3::DoConnect() noexcept {
 	if (m_logger)
 		*m_logger << Logger::Level::LowLevel << "SQLite3::DoConnect enter" << std::endl;
 	if (m_connected)
+		return false;
+	if (static_cast<std::string_view>(m_database_file).find('\0') != std::string_view::npos)
 		return false;
 	{
 		std::lock_guard<std::mutex> lock(g_sqlite_init_mutex);
@@ -157,6 +159,10 @@ StormByte::Database::ExpectedRows SQLite3::Query(std::string_view query) noexcep
 		telemetry.Complete(false);
 		return Unexpected<ExecuteError>("Database not connected");
 	}
+	if (query.find('\0') != std::string_view::npos) {
+		telemetry.Complete(false);
+		return Unexpected<ExecuteError>("Query contains an embedded NUL character");
+	}
 	if (query.size() > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
 		telemetry.Complete(false);
 		return Unexpected<ExecuteError>("Query exceeds SQLite's supported length");
@@ -165,7 +171,7 @@ StormByte::Database::ExpectedRows SQLite3::Query(std::string_view query) noexcep
 	const char* query_data = query.empty() ? "" : query.data();
 	int rc = sqlite3_prepare_v2(m_database, query_data, static_cast<int>(query.size()), &stmt, nullptr);
 	if (rc != SQLITE_OK) {
-		if (auto* sqlite_telemetry = dynamic_cast<Telemetry*>(m_telemetry.get()))
+		if (auto* sqlite_telemetry = dynamic_cast<class Telemetry*>(m_telemetry.get()))
 			sqlite_telemetry->RecordSQLiteResult(rc);
 		const std::string errorStr = sqlite3_errmsg(m_database);
 		if (stmt)
@@ -176,7 +182,7 @@ StormByte::Database::ExpectedRows SQLite3::Query(std::string_view query) noexcep
 
 	ExpectedRows result = StepResults(stmt);
 	if (!result) {
-		if (auto* sqlite_telemetry = dynamic_cast<Telemetry*>(m_telemetry.get()))
+		if (auto* sqlite_telemetry = dynamic_cast<class Telemetry*>(m_telemetry.get()))
 			sqlite_telemetry->RecordSQLiteResult(sqlite3_errcode(m_database));
 	}
 	sqlite3_finalize(stmt);
@@ -200,11 +206,13 @@ bool SQLite3::DoSilentQuery(std::string_view query) noexcept {
 		RecordBackendEvent(BackendEvent::Connection);
 		return false;
 	}
+	if (query.find('\0') != std::string_view::npos)
+		return false;
 	const std::string query_text{query};
 	char* errMsg = nullptr;
 	int rc = sqlite3_exec(m_database, query_text.c_str(), nullptr, nullptr, &errMsg);
 	if (rc != SQLITE_OK) {
-		if (auto* sqlite_telemetry = dynamic_cast<Telemetry*>(m_telemetry.get()))
+		if (auto* sqlite_telemetry = dynamic_cast<class Telemetry*>(m_telemetry.get()))
 			sqlite_telemetry->RecordSQLiteResult(rc);
 		if (errMsg) {
 			if (m_logger) {
@@ -227,6 +235,8 @@ void SQLite3::EnableForeignKeys() {
 
 StormByte::Safe::Unique<StormByte::Database::PreparedSTMT>
 SQLite3::CreatePreparedSTMT(std::string_view name, std::string_view query) noexcept {
+	if (!m_connected || !m_database || query.find('\0') != std::string_view::npos)
+		return nullptr;
 	StormByte::Safe::Unique<PreparedSTMT> stmt = StormByte::Safe::Unique<PreparedSTMT>::MakePointer<PreparedSTMT>(
 		PreparedSTMT::ConstructionKey{}, name, query, m_logger, m_telemetry);
 	if (stmt->Query().size() > static_cast<std::size_t>(std::numeric_limits<int>::max()))

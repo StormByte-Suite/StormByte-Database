@@ -242,6 +242,29 @@ int test_row_and_rows_value_semantics() {
 	RETURN_TEST(fn_name, 0);
 }
 
+int test_embedded_nul_value_semantics() {
+	constexpr std::string_view fn_name = "test_embedded_nul_value_semantics";
+	constexpr std::string_view text{"left\0right", 10};
+	constexpr std::string_view name{"column\0suffix", 13};
+	Value value{text};
+	Value copy{value};
+	Value moved{std::move(copy)};
+	ASSERT_TRUE(fn_name, static_cast<std::string_view>(moved.Get<StormByte::Safe::String>()) == text);
+	Row row;
+	row.add("column", Value{1});
+	row.add(name, std::move(moved));
+	ASSERT_EQUAL(fn_name, 1, row["column"].Get<int>());
+	ASSERT_TRUE(fn_name, row[1].Name() == name);
+	ASSERT_TRUE(fn_name, static_cast<std::string_view>(row[name].Get<StormByte::Safe::String>()) == text);
+	Rows rows;
+	rows.add(row);
+	StormByte::Safe::Vector<Rows> snapshots{rows};
+	const Rows snapshot = snapshots[0];
+	ASSERT_TRUE(fn_name, snapshot == rows);
+	ASSERT_TRUE(fn_name, static_cast<std::string_view>(snapshot[0][name].Get<StormByte::Safe::String>()) == text);
+	RETURN_TEST(fn_name, 0);
+}
+
 int test_telemetry_operation_metrics() {
 	constexpr std::string_view fn_name = "test_telemetry_operation_metrics";
 	auto telemetry = StormByte::Safe::Shared<TestTelemetry>::MakePointer<TestTelemetry>();
@@ -254,12 +277,12 @@ int test_telemetry_operation_metrics() {
 		operation.Complete(false);
 	}
 	const OperationMetrics metrics = telemetry->Metrics(Operation::Query);
-	ASSERT_EQUAL(fn_name, 2, metrics.Attempts);
-	ASSERT_EQUAL(fn_name, 1, metrics.Successes);
-	ASSERT_EQUAL(fn_name, 1, metrics.Failures);
+	ASSERT_EQUAL(fn_name, std::uint64_t{2}, metrics.Attempts);
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, metrics.Successes);
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, metrics.Failures);
 	ASSERT_TRUE(fn_name, metrics.MinimumNanoseconds <= metrics.MeanNanoseconds());
 	ASSERT_TRUE(fn_name, metrics.MeanNanoseconds() <= metrics.MaximumNanoseconds);
-	ASSERT_EQUAL(fn_name, 3, telemetry->RowsReturned());
+	ASSERT_EQUAL(fn_name, std::uint64_t{3}, telemetry->RowsReturned());
 	ASSERT_TRUE(fn_name, static_cast<std::string>(*telemetry).find("Query{calls=2") != std::string::npos);
 
 	auto concurrent_telemetry = StormByte::Safe::Shared<TestTelemetry>::MakePointer<TestTelemetry>();
@@ -289,9 +312,9 @@ int test_telemetry_operation_metrics() {
 	reader.join();
 	ASSERT_TRUE(fn_name, !invalid_minimum.load(std::memory_order_relaxed));
 	const OperationMetrics concurrent_metrics = concurrent_telemetry->Metrics(Operation::PreparedStatement);
-	ASSERT_EQUAL(fn_name, thread_count * operations_per_thread, concurrent_metrics.Attempts);
-	ASSERT_EQUAL(fn_name, thread_count * operations_per_thread, concurrent_metrics.Successes);
-	ASSERT_EQUAL(fn_name, thread_count * operations_per_thread, concurrent_telemetry->RowsReturned());
+	ASSERT_EQUAL(fn_name, static_cast<std::uint64_t>(thread_count * operations_per_thread), concurrent_metrics.Attempts);
+	ASSERT_EQUAL(fn_name, static_cast<std::uint64_t>(thread_count * operations_per_thread), concurrent_metrics.Successes);
+	ASSERT_EQUAL(fn_name, static_cast<std::uint64_t>(thread_count * operations_per_thread), concurrent_telemetry->RowsReturned());
 	RETURN_TEST(fn_name, 0);
 }
 
@@ -327,6 +350,7 @@ int main() {
 	result += test_invalid_value_conversions_throw();
 	result += test_value_variants_and_numeric_boundaries();
 	result += test_row_and_rows_value_semantics();
+	result += test_embedded_nul_value_semantics();
 	result += test_telemetry_operation_metrics();
 	result += test_telemetry_overlapping_samples();
 	if (result == 0) {

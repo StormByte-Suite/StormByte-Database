@@ -144,9 +144,9 @@ int not_connected_query() {
 	TestMemoryDatabase db;
 	auto res = db.Query("SELECT 1;");
 	ASSERT_FALSE(fn_name, res.has_value());
-	const auto telemetry = db.GetTelemetry();
-	ASSERT_EQUAL(fn_name, 1, telemetry->Metrics(StormByte::Database::Operation::Query).Failures);
-	ASSERT_EQUAL(fn_name, 1, telemetry->Events(StormByte::Database::BackendEvent::Connection));
+	const auto telemetry = db.Telemetry();
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::Query).Failures);
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Events(StormByte::Database::BackendEvent::Connection));
 	RETURN_TEST(fn_name, 0);
 }
 
@@ -605,7 +605,7 @@ int concurrent_multiple_connections() {
 	std::vector<std::thread> threads;
 	threads.reserve(static_cast<std::size_t>(num_threads));
 	for (int t = 0; t < num_threads; ++t) {
-		threads.emplace_back([t, db_path, inserts_per_thread, max_attempts, retry_ms, &failures]() {
+		threads.emplace_back([t, db_path, retry_ms, &failures]() {
 			TestFileDatabase local_db(db_path);
 			if (!local_db.Connect()) {
 				++failures;
@@ -723,7 +723,7 @@ int telemetry_tracks_sqlite_operations_and_survives_database() {
 	StormByte::Safe::Shared<StormByte::Database::Telemetry> retained;
 	{
 		TestMemoryDatabase db;
-		retained = db.GetTelemetry();
+		retained = db.Telemetry();
 		ASSERT_TRUE(fn_name, retained != nullptr);
 		ASSERT_TRUE(fn_name, dynamic_cast<StormByte::Database::SQLite::Telemetry*>(retained.get()) != nullptr);
 		ASSERT_TRUE(fn_name, db.Connect());
@@ -743,25 +743,25 @@ int telemetry_tracks_sqlite_operations_and_survives_database() {
 
 	const auto* telemetry = dynamic_cast<const StormByte::Database::SQLite::Telemetry*>(retained.get());
 	ASSERT_TRUE(fn_name, telemetry != nullptr);
-	ASSERT_EQUAL(fn_name, 1, telemetry->Metrics(StormByte::Database::Operation::Connect).Successes);
-	ASSERT_EQUAL(fn_name, 2, telemetry->Metrics(StormByte::Database::Operation::Disconnect).Successes);
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::Connect).Successes);
+	ASSERT_EQUAL(fn_name, std::uint64_t{2}, telemetry->Metrics(StormByte::Database::Operation::Disconnect).Successes);
 	const auto query = telemetry->Metrics(StormByte::Database::Operation::Query);
-	ASSERT_EQUAL(fn_name, 2, query.Attempts);
-	ASSERT_EQUAL(fn_name, 1, query.Successes);
-	ASSERT_EQUAL(fn_name, 1, query.Failures);
+	ASSERT_EQUAL(fn_name, std::uint64_t{2}, query.Attempts);
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, query.Successes);
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, query.Failures);
 	ASSERT_TRUE(fn_name, query.MinimumNanoseconds <= query.MeanNanoseconds());
 	ASSERT_TRUE(fn_name, query.MeanNanoseconds() <= query.MaximumNanoseconds);
-	ASSERT_EQUAL(fn_name, 3, telemetry->RowsReturned());
-	ASSERT_EQUAL(fn_name, 1, telemetry->Metrics(StormByte::Database::Operation::PreparedStatement).Failures);
-	ASSERT_EQUAL(fn_name, 1, telemetry->Metrics(StormByte::Database::Operation::PreparedStatement).Successes);
+	ASSERT_EQUAL(fn_name, std::uint64_t{3}, telemetry->RowsReturned());
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::PreparedStatement).Failures);
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::PreparedStatement).Successes);
 	const auto prepare_metrics = telemetry->Metrics(StormByte::Database::Operation::PrepareStatement);
 	ASSERT_TRUE(fn_name, prepare_metrics.Attempts > 0);
 	ASSERT_EQUAL(fn_name, prepare_metrics.Attempts, prepare_metrics.Successes);
-	ASSERT_EQUAL(fn_name, 1, telemetry->Metrics(StormByte::Database::Operation::SilentQuery).Failures);
-	ASSERT_EQUAL(fn_name, 2, telemetry->Metrics(StormByte::Database::Operation::BeginTransaction).Successes);
-	ASSERT_EQUAL(fn_name, 1, telemetry->Metrics(StormByte::Database::Operation::CommitTransaction).Successes);
-	ASSERT_EQUAL(fn_name, 1, telemetry->Metrics(StormByte::Database::Operation::RollbackTransaction).Successes);
-	ASSERT_EQUAL(fn_name, 1, telemetry->ConstraintErrors());
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::SilentQuery).Failures);
+	ASSERT_EQUAL(fn_name, std::uint64_t{2}, telemetry->Metrics(StormByte::Database::Operation::BeginTransaction).Successes);
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::CommitTransaction).Successes);
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::RollbackTransaction).Successes);
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->ConstraintErrors());
 	ASSERT_TRUE(fn_name, static_cast<std::string>(*retained).find("SQLite{") != std::string::npos);
 	RETURN_TEST(fn_name, 0);
 }
@@ -776,7 +776,7 @@ int prepared_registry_preserves_unique_statements() {
 	const auto first = db.ExecuteSTMT(name);
 	ASSERT_TRUE(fn_name, first.has_value());
 	ASSERT_EQUAL(fn_name, 17, (*first)[0][0].Get<int>());
-	ASSERT_EQUAL(fn_name, std::uint64_t{1}, db.GetTelemetry()->Metrics(StormByte::Database::Operation::PrepareStatement).Failures);
+	ASSERT_EQUAL(fn_name, std::uint64_t{1}, db.Telemetry()->Metrics(StormByte::Database::Operation::PrepareStatement).Failures);
 	db.Disconnect();
 	ASSERT_TRUE(fn_name, db.Connect());
 	ASSERT_TRUE(fn_name, !db.ExecuteSTMT(name));
@@ -787,8 +787,39 @@ int prepared_registry_preserves_unique_statements() {
 	RETURN_TEST(fn_name, 0);
 }
 
+int embedded_nul_contract() {
+	constexpr std::string_view fn_name = "embedded_nul_contract";
+	TestMemoryDatabase db;
+	ASSERT_TRUE(fn_name, db.Connect());
+	constexpr std::string_view text{"left\0right", 10};
+	constexpr std::string_view name{"echo\0suffix", 11};
+	db.RegisterStatement("echo", "SELECT 17;");
+	db.RegisterStatement(name, "SELECT ?;");
+	const auto rows = db.ExecuteSTMT(name, StormByte::Safe::String{text});
+	ASSERT_TRUE(fn_name, rows.has_value());
+	ASSERT_TRUE(fn_name, static_cast<std::string_view>((*rows)[0][0].Get<StormByte::Safe::String>()) == text);
+	const auto prefix = db.ExecuteSTMT("echo");
+	ASSERT_TRUE(fn_name, prefix.has_value());
+	ASSERT_EQUAL(fn_name, 17, (*prefix)[0][0].Get<int>());
+	const auto empty = db.ExecuteSTMT(name, std::string_view{});
+	ASSERT_TRUE(fn_name, empty.has_value());
+	ASSERT_FALSE(fn_name, (*empty)[0][0].IsNull());
+	ASSERT_TRUE(fn_name, (*empty)[0][0].Get<StormByte::Safe::String>().empty());
+	constexpr std::string_view invalid_sql{"SELECT 1;\0SELECT 2;", 19};
+	ASSERT_FALSE(fn_name, db.Query(invalid_sql).has_value());
+	ASSERT_FALSE(fn_name, db.SilentQuery(invalid_sql));
+	db.RegisterStatement("invalid_nul", invalid_sql);
+	ASSERT_FALSE(fn_name, db.ExecuteSTMT("invalid_nul").has_value());
+	const std::string invalid_path{":memory:\0suffix", 15};
+	TestFileDatabase file{std::filesystem::path{invalid_path}};
+	ASSERT_FALSE(fn_name, file.Connect());
+	ASSERT_TRUE(fn_name, db.Query("SELECT 1;").has_value());
+	RETURN_TEST(fn_name, 0);
+}
+
 int main() {
 	int result = 0;
+	result += embedded_nul_contract();
 	result += not_connected_query();
 	result += not_connected_silent();
 	result += not_connected_execute();

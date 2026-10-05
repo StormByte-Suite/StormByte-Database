@@ -107,7 +107,7 @@ namespace StormByte {
 				 * @brief Obtain the cumulative connection telemetry handle.
 				 * @return Shared counters that remain valid after close or Database destruction.
 				 */
-				StormByte::Safe::Shared<Telemetry> GetTelemetry() const noexcept;
+				StormByte::Safe::Shared<class Telemetry> Telemetry() const noexcept;
 
 				/**
 				 * @brief Connect.
@@ -134,7 +134,7 @@ namespace StormByte {
 				 * @brief TLS policy for the next Connect(). Ignored by SQLite.
 				 * @param mode Desired SSL mode.
 				 */
-				void SetSslMode(SslMode mode) noexcept {
+				void SslMode(StormByte::Database::SslMode mode) noexcept {
 					std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
 					m_ssl_mode = mode;
 				}
@@ -143,7 +143,7 @@ namespace StormByte {
 				 * @brief Current TLS policy.
 				 * @return Mode.
 				 */
-				SslMode GetSslMode() const noexcept {
+				StormByte::Database::SslMode SslMode() const noexcept {
 					std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
 					return m_ssl_mode;
 				}
@@ -201,13 +201,13 @@ namespace StormByte {
 			protected:
 				friend class Transaction;
 				StormByte::Safe::Shared<std::recursive_mutex> m_operation_mutex; ///< DLL-safe owner of the connection mutex
-				StormByte::Safe::Shared<Telemetry> m_telemetry; ///< Shared cumulative counters for this connection.
+				StormByte::Safe::Shared<class Telemetry> m_telemetry; ///< Shared cumulative counters for this connection.
 
 				/**
 				 * @brief Replace the telemetry implementation, normally in a concrete backend constructor.
 				 * @param telemetry Backend-specific telemetry allocated on Base's heap.
 				 */
-				void SetTelemetry(StormByte::Safe::Shared<Telemetry> telemetry) noexcept;
+				void Telemetry(StormByte::Safe::Shared<class Telemetry> telemetry) noexcept;
 
 				/**
 				 * @brief Record a categorized event reported by the active backend.
@@ -222,12 +222,12 @@ namespace StormByte {
 				 * @param operation Operation category.
 				 * @return Scope that records failure unless Complete() reports otherwise.
 				 */
-				Telemetry::OperationScope TrackOperation(Operation operation) const noexcept {
-					return Telemetry::OperationScope{m_telemetry, operation};
+				StormByte::Database::Telemetry::OperationScope TrackOperation(Operation operation) const noexcept {
+					return StormByte::Database::Telemetry::OperationScope{m_telemetry, operation};
 				}
 
 				bool m_connected;																 ///< Connection state
-				SslMode m_ssl_mode;																 ///< TLS policy for network backends
+				StormByte::Database::SslMode m_ssl_mode;											 ///< TLS policy for network backends
 
 				StormByte::Safe::Shared<Logger::Log> m_logger;	///< Shared logger, safe across the DLL boundary
 

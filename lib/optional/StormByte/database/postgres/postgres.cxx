@@ -66,7 +66,7 @@ Postgres::Postgres(std::string_view host, std::string_view user, std::string_vie
 				std::string_view db_name, const StormByte::Safe::Shared<Logger::Log>& logger)
 	: Database(logger), m_host(host), m_user(user), m_password(password),
 	m_dbname(db_name), m_conn(nullptr) {
-	SetTelemetry(StormByte::Safe::Shared<StormByte::Database::Telemetry>::MakePointer<StormByte::Database::Postgres::Telemetry>());
+	Telemetry(StormByte::Safe::Shared<StormByte::Database::Telemetry>::MakePointer<StormByte::Database::Postgres::Telemetry>());
 }
 
 Postgres::Postgres(Postgres&& db) noexcept
@@ -102,6 +102,11 @@ bool Postgres::DoConnect() noexcept {
 		*m_logger << Logger::Level::LowLevel << "Postgres::DoConnect enter" << std::endl;
 	if (m_connected)
 		return false;
+	if (static_cast<std::string_view>(m_host).find('\0') != std::string_view::npos ||
+		static_cast<std::string_view>(m_user).find('\0') != std::string_view::npos ||
+		static_cast<std::string_view>(m_password).find('\0') != std::string_view::npos ||
+		static_cast<std::string_view>(m_dbname).find('\0') != std::string_view::npos)
+		return false;
 	const char* ssl_mode = nullptr;
 	switch (m_ssl_mode) {
 		case SslMode::Disable:
@@ -120,10 +125,10 @@ bool Postgres::DoConnect() noexcept {
 
 	const char* keywords[] = {"host", "user", "password", "dbname", "sslmode", nullptr};
 	const char* values[] = {
-		m_host.empty() ? nullptr : m_host.c_str(),
-		m_user.empty() ? nullptr : m_user.c_str(),
-		m_password.empty() ? nullptr : m_password.c_str(),
-		m_dbname.empty() ? nullptr : m_dbname.c_str(),
+		m_host.empty() ? nullptr : m_host.Bytes(),
+		m_user.empty() ? nullptr : m_user.Bytes(),
+		m_password.empty() ? nullptr : m_password.Bytes(),
+		m_dbname.empty() ? nullptr : m_dbname.Bytes(),
 		ssl_mode,
 		nullptr
 	};
@@ -190,7 +195,7 @@ StormByte::Database::ExpectedRows Postgres::Query(std::string_view query) noexce
 	ExecStatusType st = PQresultStatus(res);
 	if (st != PGRES_TUPLES_OK && st != PGRES_COMMAND_OK) {
 		const char* sql_state = PQresultErrorField(res, PG_DIAG_SQLSTATE);
-		if (auto* postgres_telemetry = dynamic_cast<Telemetry*>(m_telemetry.get()))
+		if (auto* postgres_telemetry = dynamic_cast<class Telemetry*>(m_telemetry.get()))
 			postgres_telemetry->RecordSqlState(sql_state ? std::string_view{sql_state} : std::string_view{});
 		std::string err = PQerrorMessage(static_cast<PGconn*>(m_conn))
 						? PQerrorMessage(static_cast<PGconn*>(m_conn))
@@ -232,7 +237,7 @@ bool Postgres::DoSilentQuery(std::string_view query) noexcept {
 	ExecStatusType st = PQresultStatus(res);
 	if (st != PGRES_COMMAND_OK && st != PGRES_TUPLES_OK) {
 		const char* sql_state = PQresultErrorField(res, PG_DIAG_SQLSTATE);
-		if (auto* postgres_telemetry = dynamic_cast<Telemetry*>(m_telemetry.get()))
+		if (auto* postgres_telemetry = dynamic_cast<class Telemetry*>(m_telemetry.get()))
 			postgres_telemetry->RecordSqlState(sql_state ? std::string_view{sql_state} : std::string_view{});
 		if (m_logger) {
 			*m_logger << Logger::Level::Error

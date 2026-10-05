@@ -127,7 +127,7 @@ MariaDB::MariaDB(std::string_view host, std::string_view user, std::string_view 
 				std::string_view db_name, int port, const StormByte::Safe::Shared<Logger::Log>& logger)
 	: Database(logger), m_host(host), m_user(user), m_password(password),
 	m_dbname(db_name), m_port(port), m_conn(nullptr) {
-	SetTelemetry(StormByte::Safe::Shared<StormByte::Database::Telemetry>::MakePointer<StormByte::Database::MariaDB::Telemetry>());
+	Telemetry(StormByte::Safe::Shared<StormByte::Database::Telemetry>::MakePointer<StormByte::Database::MariaDB::Telemetry>());
 }
 MariaDB::MariaDB(MariaDB&& db) noexcept
 	: Database(std::move(db)), m_host(std::move(db.m_host)), m_user(std::move(db.m_user)),
@@ -157,6 +157,11 @@ bool MariaDB::DoConnect() noexcept {
 		*m_logger << Logger::Level::LowLevel << "MariaDB::DoConnect enter" << std::endl;
 	if (m_connected)
 		return false;
+	if (static_cast<std::string_view>(m_host).find('\0') != std::string_view::npos ||
+		static_cast<std::string_view>(m_user).find('\0') != std::string_view::npos ||
+		static_cast<std::string_view>(m_password).find('\0') != std::string_view::npos ||
+		static_cast<std::string_view>(m_dbname).find('\0') != std::string_view::npos)
+		return false;
 	MYSQL* conn = mysql_init(nullptr);
 	if (!conn) {
 		if (m_logger)
@@ -167,10 +172,10 @@ bool MariaDB::DoConnect() noexcept {
 	ApplySslMode(conn, m_ssl_mode);
 	unsigned int port = static_cast<unsigned int>(m_port);
 	if (!mysql_real_connect(conn,
-							m_host.empty() ? nullptr : m_host.c_str(),
-							m_user.empty() ? nullptr : m_user.c_str(),
-							m_password.empty() ? nullptr : m_password.c_str(),
-							m_dbname.empty() ? nullptr : m_dbname.c_str(),
+							m_host.empty() ? nullptr : m_host.Bytes(),
+							m_user.empty() ? nullptr : m_user.Bytes(),
+							m_password.empty() ? nullptr : m_password.Bytes(),
+							m_dbname.empty() ? nullptr : m_dbname.Bytes(),
 							port, nullptr, 0)) {
 		if (m_logger) {
 			*m_logger << Logger::Level::Error
@@ -216,14 +221,14 @@ StormByte::Database::ExpectedRows MariaDB::Query(std::string_view query) noexcep
 		return Unexpected<ExecuteError>("Query exceeds MariaDB's supported length");
 	}
 	if (mysql_real_query(m_conn, query.data(), static_cast<unsigned long>(query.size())) != 0) {
-		if (auto* mariadb_telemetry = dynamic_cast<Telemetry*>(m_telemetry.get()))
+		if (auto* mariadb_telemetry = dynamic_cast<class Telemetry*>(m_telemetry.get()))
 			mariadb_telemetry->RecordMariaDBError(mysql_errno(m_conn));
 		telemetry.Complete(false);
 		return Unexpected<ExecuteError>(mysql_error(m_conn) ? mysql_error(m_conn) : "Unknown MySQL error");
 	}
 
 	if (const unsigned int warnings = LogMariaDBWarnings(m_conn, m_logger); warnings > 0) {
-		if (auto* mariadb_telemetry = dynamic_cast<Telemetry*>(m_telemetry.get()))
+		if (auto* mariadb_telemetry = dynamic_cast<class Telemetry*>(m_telemetry.get()))
 			mariadb_telemetry->RecordMariaDBWarnings(warnings);
 	}
 	MYSQL_RES* res = mysql_store_result(m_conn);
@@ -232,7 +237,7 @@ StormByte::Database::ExpectedRows MariaDB::Query(std::string_view query) noexcep
 			telemetry.Complete(true);
 			return Rows();
 		}
-		if (auto* mariadb_telemetry = dynamic_cast<Telemetry*>(m_telemetry.get()))
+		if (auto* mariadb_telemetry = dynamic_cast<class Telemetry*>(m_telemetry.get()))
 			mariadb_telemetry->RecordMariaDBError(mysql_errno(m_conn));
 		telemetry.Complete(false);
 		return Unexpected<ExecuteError>(mysql_error(m_conn) ? mysql_error(m_conn) : "Unknown MySQL error");
@@ -263,7 +268,7 @@ bool MariaDB::DoSilentQuery(std::string_view query) noexcept {
 	if (query.size() > std::numeric_limits<unsigned long>::max())
 		return false;
 	if (mysql_real_query(m_conn, query.data(), static_cast<unsigned long>(query.size())) != 0) {
-		if (auto* mariadb_telemetry = dynamic_cast<Telemetry*>(m_telemetry.get()))
+		if (auto* mariadb_telemetry = dynamic_cast<class Telemetry*>(m_telemetry.get()))
 			mariadb_telemetry->RecordMariaDBError(mysql_errno(m_conn));
 		if (m_logger) {
 			*m_logger << Logger::Level::Error
@@ -276,7 +281,7 @@ bool MariaDB::DoSilentQuery(std::string_view query) noexcept {
 	}
 
 	if (const unsigned int warnings = LogMariaDBWarnings(m_conn, m_logger); warnings > 0) {
-		if (auto* mariadb_telemetry = dynamic_cast<Telemetry*>(m_telemetry.get()))
+		if (auto* mariadb_telemetry = dynamic_cast<class Telemetry*>(m_telemetry.get()))
 			mariadb_telemetry->RecordMariaDBWarnings(warnings);
 	}
 	return true;

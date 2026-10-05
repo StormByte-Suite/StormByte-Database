@@ -26,11 +26,11 @@ namespace {
 	using StormByte::Database::Value;
 	std::once_flag db_library_once;
 
-	bool SetLoginString(LOGINREC* login, const std::string& value, const int option) {
-		return value.empty() || dbsetlname(login, value.c_str(), option) != FAIL;
+	bool LoginString(LOGINREC* login, const char* value, const int option) {
+		return !value || !*value || dbsetlname(login, value, option) != FAIL;
 	}
 
-	bool SetLoginPort(LOGINREC* login, const int port) {
+	bool LoginPort(LOGINREC* login, const int port) {
 		if (port <= 0 || port > std::numeric_limits<unsigned short>::max())
 			return false;
 	#ifdef DBSETPORT
@@ -41,11 +41,11 @@ namespace {
 	#endif
 	}
 
-	std::string ErrorText(const char* message, const std::string& fallback) {
+	std::string ErrorText(const char* message, const std::string_view fallback) {
 		if (message && *message)
 			return message;
 		if (!fallback.empty())
-			return fallback;
+			return std::string{fallback};
 		return "Unknown FreeTDS DB-Library error";
 	}
 
@@ -160,7 +160,7 @@ MSSQL::MSSQL(std::string_view host, std::string_view user, std::string_view pass
 		std::string_view database, const int port, const StormByte::Safe::Shared<Logger::Log>& logger):
 	Database(logger), m_host(host), m_user(user), m_password(password), m_database(database),
 	m_port(port), m_connection(nullptr) {
-	SetTelemetry(StormByte::Safe::Shared<StormByte::Database::Telemetry>::MakePointer<Telemetry>());
+	Telemetry(StormByte::Safe::Shared<StormByte::Database::Telemetry>::MakePointer<class Telemetry>());
 }
 
 MSSQL::MSSQL(MSSQL&& other) noexcept:
@@ -218,13 +218,18 @@ int MSSQL::MessageHandler(DBPROCESS* const process, const int message_number, co
 	auto* self = process ? reinterpret_cast<MSSQL*>(dbgetuserdata(process)) : nullptr;
 	if (self) {
 		self->m_last_error = ErrorText(text, "SQL Server reported an error");
-		static_cast<StormByte::Database::MSSQL::Telemetry*>(self->GetTelemetry().get())->RecordError();
+		static_cast<StormByte::Database::MSSQL::Telemetry*>(self->Telemetry().get())->RecordError();
 	}
 	return INT_CANCEL;
 }
 
 bool MSSQL::DoConnect() noexcept {
 	if (m_connected || m_host.empty() || m_port <= 0 || m_port > std::numeric_limits<unsigned short>::max())
+		return false;
+	if (static_cast<std::string_view>(m_host).find('\0') != std::string_view::npos ||
+		static_cast<std::string_view>(m_user).find('\0') != std::string_view::npos ||
+		static_cast<std::string_view>(m_password).find('\0') != std::string_view::npos ||
+		static_cast<std::string_view>(m_database).find('\0') != std::string_view::npos)
 		return false;
 	try {
 		std::call_once(db_library_once, [] {
@@ -239,13 +244,13 @@ bool MSSQL::DoConnect() noexcept {
 			return false;
 		}
 
-		bool configured = SetLoginString(login, m_host, DBSETHOST)
-			&& SetLoginString(login, m_user, DBSETUSER)
-			&& SetLoginString(login, m_password, DBSETPWD)
-			&& SetLoginString(login, "StormByte-Database", DBSETAPP)
-			&& SetLoginString(login, m_database, DBSETDBNAME)
-			&& SetLoginString(login, "UTF-8", DBSETCHARSET)
-			&& SetLoginPort(login, m_port);
+		bool configured = LoginString(login, m_host.Bytes(), DBSETHOST)
+			&& LoginString(login, m_user.Bytes(), DBSETUSER)
+			&& LoginString(login, m_password.Bytes(), DBSETPWD)
+			&& LoginString(login, "StormByte-Database", DBSETAPP)
+			&& LoginString(login, m_database.Bytes(), DBSETDBNAME)
+			&& LoginString(login, "UTF-8", DBSETCHARSET)
+			&& LoginPort(login, m_port);
 		const char* encryption = nullptr;
 		switch (m_ssl_mode) {
 			case SslMode::Disable: encryption = "off"; break;
@@ -269,7 +274,7 @@ bool MSSQL::DoConnect() noexcept {
 			return false;
 		}
 
-		std::string server_name = m_host;
+		std::string server_name{static_cast<std::string_view>(m_host)};
 	#ifndef DBSETPORT
 		if (m_port != 1433)
 			server_name += ":" + std::to_string(m_port);

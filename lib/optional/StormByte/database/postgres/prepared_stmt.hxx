@@ -119,7 +119,7 @@ namespace StormByte {
 
 				private:
 					struct pg_conn *m_conn;		 ///< Connection handle
-					std::string m_stmt_name;	 ///< Server-side statement name
+					StormByte::Safe::String m_stmt_name; ///< Base-owned server-side statement name
 					std::vector<Value> m_params; ///< Bound values, retained until execution
 
 					/**

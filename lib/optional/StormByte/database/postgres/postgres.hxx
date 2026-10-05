@@ -71,7 +71,7 @@ namespace StormByte {
 			 * @brief PostgreSQL backend.
 			 *
 				 * @note Built-in connection operations are serialized. Transactions must stay on their creating thread.
-			 * @note Inheritance-oriented. Constructors are protected. SetSslMode() before Connect() if needed.
+			 * @note Inheritance-oriented. Constructors are protected. SslMode() before Connect() if needed.
 			 */
 			class STORMBYTE_DATABASE_PUBLIC Postgres : public Database {
 				public:
@@ -137,10 +137,10 @@ namespace StormByte {
 					bool DoSilentQuery(std::string_view query) noexcept override;
 
 				private:
-					std::string m_host;		///< Host
-					std::string m_user;		///< User
-					std::string m_password; ///< Password
-					std::string m_dbname;	///< Database name
+					StormByte::Safe::String m_host;		///< Base-owned host
+					StormByte::Safe::String m_user;		///< Base-owned user
+					StormByte::Safe::String m_password;	///< Base-owned password
+					StormByte::Safe::String m_dbname;		///< Base-owned database name
 					struct pg_conn *m_conn; ///< Connection handle
 
 					/**

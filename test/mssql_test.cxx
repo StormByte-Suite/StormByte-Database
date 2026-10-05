@@ -323,7 +323,7 @@ int telemetry_tracks_errors_and_survives_database() {
 	StormByte::Safe::Shared<StormByte::Database::Telemetry> retained;
 	{
 		TestDatabase database;
-		retained = database.GetTelemetry();
+		retained = database.Telemetry();
 		ASSERT_TRUE(test_name, dynamic_cast<StormByte::Database::MSSQL::Telemetry*>(retained.get()) != nullptr);
 		ASSERT_TRUE(test_name, database.Connect());
 		ASSERT_TRUE(test_name, database.Query("SELECT 1 AS value;").has_value());
@@ -334,11 +334,11 @@ int telemetry_tracks_errors_and_survives_database() {
 	}
 	const auto* telemetry = dynamic_cast<const StormByte::Database::MSSQL::Telemetry*>(retained.get());
 	ASSERT_TRUE(test_name, telemetry != nullptr);
-	ASSERT_EQUAL(test_name, 2, telemetry->Metrics(Operation::Query).Attempts);
-	ASSERT_EQUAL(test_name, 1, telemetry->Metrics(Operation::Query).Successes);
-	ASSERT_EQUAL(test_name, 1, telemetry->Metrics(Operation::Query).Failures);
-	ASSERT_EQUAL(test_name, 1, telemetry->Metrics(Operation::PreparedStatement).Successes);
-	ASSERT_EQUAL(test_name, 1, telemetry->Metrics(Operation::PreparedStatement).Failures);
+	ASSERT_EQUAL(test_name, std::uint64_t{2}, telemetry->Metrics(Operation::Query).Attempts);
+	ASSERT_EQUAL(test_name, std::uint64_t{1}, telemetry->Metrics(Operation::Query).Successes);
+	ASSERT_EQUAL(test_name, std::uint64_t{1}, telemetry->Metrics(Operation::Query).Failures);
+	ASSERT_EQUAL(test_name, std::uint64_t{1}, telemetry->Metrics(Operation::PreparedStatement).Successes);
+	ASSERT_EQUAL(test_name, std::uint64_t{1}, telemetry->Metrics(Operation::PreparedStatement).Failures);
 	ASSERT_TRUE(test_name, telemetry->Errors() > 0);
 	ASSERT_TRUE(test_name, static_cast<std::string>(*retained).find("MSSQL{") != std::string::npos);
 	RETURN_TEST(test_name, 0);

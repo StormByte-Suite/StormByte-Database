@@ -21,6 +21,9 @@ class ConsumerDatabase
 			: SQLite3(path, StormByte::Safe::Shared<StormByte::Logger::Log>{}) {}
 		ConsumerDatabase(std::filesystem::path&& path)
 			: SQLite3(std::move(path), StormByte::Safe::Shared<StormByte::Logger::Log>{}) {}
+		void RegisterStatement(std::string_view name, std::string_view query) {
+			DoPrepareSTMT(name, query);
+		}
 #endif
 };
 
@@ -48,7 +51,7 @@ int main() {
 	const auto rows = db.Query("SELECT 42;");
 	if (!rows || rows->Count() != 1 || rows->operator[](0)[0].Get<int>() != 42)
 		return 3;
-	const auto telemetry = db.GetTelemetry();
+	const auto telemetry = db.Telemetry();
 	if (!telemetry || telemetry->Metrics(StormByte::Database::Operation::Query).Successes != 1)
 		return 4;
 	const auto* sqlite_telemetry = dynamic_cast<const StormByte::Database::SQLite::Telemetry*>(telemetry.get());
@@ -71,6 +74,16 @@ int main() {
 	ConsumerDatabase temporary{std::filesystem::path{":memory:"}};
 	if (!temporary.Connect())
 		return 11;
+	constexpr std::string_view text{"left\0right", 10};
+	constexpr std::string_view name{"echo\0suffix", 11};
+	db.RegisterStatement(name, "SELECT ?;");
+	const auto full_text = db.ExecuteSTMT(name, StormByte::Safe::String{text});
+	if (!full_text || static_cast<std::string_view>((*full_text)[0][0].Get<StormByte::Safe::String>()) != text)
+		return 12;
+	StormByte::Safe::Vector<StormByte::Database::Rows> text_snapshots{*full_text};
+	const StormByte::Database::Rows text_snapshot = text_snapshots[0];
+	if (static_cast<std::string_view>(text_snapshot[0][0].Get<StormByte::Safe::String>()) != text)
+		return 13;
 #endif
 	return 0;
 }

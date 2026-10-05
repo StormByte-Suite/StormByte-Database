@@ -53,7 +53,7 @@ struct Database::PreparedStatements {
 
 Database::Database(const StormByte::Safe::Shared<Logger::Log>& logger):
 	m_operation_mutex(StormByte::Safe::Shared<std::recursive_mutex>::MakePointer<std::recursive_mutex>()),
-	m_telemetry(StormByte::Safe::Shared<Telemetry>::MakePointer<Telemetry>()),
+	m_telemetry(StormByte::Safe::Shared<class Telemetry>::MakePointer<class Telemetry>()),
 	m_connected(false), m_ssl_mode(SslMode::Default), m_logger(logger),
 	m_prepared_stmts(StormByte::Safe::Unique<PreparedStatements>::MakePointer<PreparedStatements>()) {}
 
@@ -91,12 +91,12 @@ Database& Database::operator=(Database&& other) noexcept {
 
 Database::~Database() noexcept = default;
 
-StormByte::Safe::Shared<Telemetry> Database::GetTelemetry() const noexcept {
+StormByte::Safe::Shared<class Telemetry> Database::Telemetry() const noexcept {
 	std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
 	return m_telemetry;
 }
 
-void Database::SetTelemetry(StormByte::Safe::Shared<Telemetry> telemetry) noexcept {
+void Database::Telemetry(StormByte::Safe::Shared<class Telemetry> telemetry) noexcept {
 	std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
 	if (telemetry)
 		m_telemetry = std::move(telemetry);

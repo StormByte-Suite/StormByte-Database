@@ -116,6 +116,10 @@ void PreparedSTMT::Binder(StormByte::Size index, Value&& value) noexcept {
 		case Value::Type::Text: {
 			const auto text = value.Get<StormByte::Safe::String>();
 			const std::string_view text_view = text;
+			if (text_view.size() > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+				m_bind_error = true;
+				return;
+			}
 			result = sqlite3_bind_text(m_stmt, col, text_view.data(), static_cast<int>(text_view.size()), SQLITE_TRANSIENT);
 			break;
 		}

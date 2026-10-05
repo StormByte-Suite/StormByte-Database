@@ -23,7 +23,7 @@ The suite is split on purpose. Base, Buffer, Config, Crypto, Logger, Multimedia,
 - **Rows** — ordered columns, lookup by name (`ColumnNotFound` / `OutOfBounds`).
 - **Prepared statements** — bind by position (0-based), `nullptr` is SQL NULL, `ExpectedRows` on execute.
 - **Transactions** — `BeginTransaction(IsolationLevel)` returns `Expected<Transaction, TransactionError>`; failed starts are reported as a value, and an uncommitted transaction rolls back on destruction.
-- **Telemetry** — `GetTelemetry()` returns a thread-safe, cumulative `StormByte::Safe::Shared` handle with operation counts, outcomes, rows and latency min/mean/max. Database telemetry extends Base telemetry and uses its named clocks; SQLite, PostgreSQL, MariaDB and MSSQL provide derived telemetry with backend-specific error counters. Retained handles remain readable after disconnect/destruction.
+- **Telemetry** — `Telemetry()` returns a thread-safe, cumulative `StormByte::Safe::Shared` handle with operation counts, outcomes, rows and latency min/mean/max. Database telemetry extends Base telemetry and uses its named clocks; SQLite, PostgreSQL, MariaDB and MSSQL provide derived telemetry with backend-specific error counters. Retained handles remain readable after disconnect/destruction.
 - **TLS** — `SslMode` for MariaDB and PostgreSQL. SQLite ignores it.
 - **Concurrent access** — operations on one connection are serialized; separate connections can run concurrently. A transaction reserves its connection until commit or rollback and must remain on the thread that created it. Custom backend implementations must lock the shared connection mutex in public operations.
 
@@ -112,7 +112,7 @@ int main() {
 }
 ```
 
-MariaDB / Postgres follow the same pattern: subclass, pass host / user / password / database (and port on MariaDB), optionally `SetSslMode` before `Connect()`. PostgreSQL connection parameters are passed separately, so credentials may contain quotes and backslashes.
+MariaDB / Postgres follow the same pattern: subclass, pass host / user / password / database (and port on MariaDB), optionally `SslMode` before `Connect()`. PostgreSQL connection parameters are passed separately, so credentials may contain quotes and backslashes.
 
 MSSQL uses FreeTDS DB-Library. Its logical prepared statements execute through `sp_executesql` RPC with typed parameters; values are not interpolated into SQL text.
 
@@ -185,7 +185,7 @@ for (const auto& row : *result) {
 #include <iostream>
 #include <string>
 
-auto telemetry = db.GetTelemetry();
+auto telemetry = db.Telemetry();
 const auto query_metrics = telemetry->Metrics(StormByte::Database::Operation::Query);
 std::cout << "queries=" << query_metrics.Attempts
 		  << " failures=" << query_metrics.Failures
@@ -206,7 +206,13 @@ Exported Database types declare `STORMBYTE_DECLARE_MAYBE_SAFE`: allocation owner
 
 Database facades keep their protected constructors and virtual hooks for application inheritance. A consumer derivative is not automatically classified as `MaybeSafe`; it must preserve the lifetime and ownership contract for its added state and declare the macro at global scope after its complete definition when used with Safe components. Copyable `Value`, `Row` and `Rows` can be used in Base Safe collections. Non-copyable facades should be retained through Safe owners.
 
+Connection settings, PostgreSQL statement names and MSSQL callback diagnostics use Base-owned `Safe::String`, including private members of inheritable backends. Private STL result and parameter storage is only constructed, mutated and destroyed in Database's out-of-line implementations. Neither this encapsulation nor Safe storage permits mixing incompatible STL or C++ ABIs: derived-object layout, RTTI, exceptions and calling conventions must still agree. Consumer overrides must release their own resources in their provider module, and borrowed views and iterators remain subject to their owner's lifetime and invalidation rules.
+
+Accessors use paired names: `Telemetry()` retrieves the handle, the protected `Telemetry(handle)` overload replaces it, and `SslMode()` / `SslMode(mode)` observe and configure TLS policy. `Value::Get<T>()` retains its name.
+
 SQLite native-path constructors convert to owned UTF-8 inside the caller before entering Database, including for temporary paths. Telemetry uses independent Base clock samples, so measurements of the same operation may overlap or nest without external clock locks.
+
+Length-bearing text values and column names preserve embedded NULs through copies and Safe collections. SQLite text bindings preserve them as well, but SQLite SQL and file paths reject embedded NULs rather than execute or open only the prefix. Network backends reject embedded NULs in connection settings before calling their client library. PostgreSQL rejects text bind parameters containing NUL because PostgreSQL text cannot represent them; use `BinaryData` for arbitrary bytes. SQLite rejects text bindings exceeding its supported length instead of narrowing the length to `int`.
 
 ## Contributing
 
