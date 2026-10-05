@@ -85,6 +85,34 @@ else()
 	set(_runtime_path "${_database_lib_dir}:${_dependency_prefix}/${DATABASE_INSTALL_LIBDIR}:$ENV{LD_LIBRARY_PATH}")
 	set(_runtime_variable "LD_LIBRARY_PATH")
 endif()
+
+if(DATABASE_OPENSSL_MODE STREQUAL "SYSTEM" AND DATABASE_BUNDLED_TLS_CLIENT)
+	get_filename_component(_openssl_ssl_dir "${DATABASE_OPENSSL_SSL_LIBRARY}" DIRECTORY)
+	get_filename_component(_openssl_crypto_dir "${DATABASE_OPENSSL_CRYPTO_LIBRARY}" DIRECTORY)
+	file(GET_RUNTIME_DEPENDENCIES
+		EXECUTABLES "${_consumer_executable}"
+		DIRECTORIES "${_database_lib_dir}" "${_dependency_prefix}/${DATABASE_INSTALL_LIBDIR}"
+			"${_openssl_ssl_dir}" "${_openssl_crypto_dir}"
+		RESOLVED_DEPENDENCIES_VAR _resolved_dependencies
+		UNRESOLVED_DEPENDENCIES_VAR _unresolved_dependencies
+	)
+	set(_resolved_real_paths)
+	foreach(_dependency IN LISTS _resolved_dependencies)
+		file(REAL_PATH "${_dependency}" _dependency_real_path)
+		list(APPEND _resolved_real_paths "${_dependency_real_path}")
+	endforeach()
+	foreach(_openssl_library IN ITEMS "${DATABASE_OPENSSL_SSL_LIBRARY}" "${DATABASE_OPENSSL_CRYPTO_LIBRARY}")
+		if(NOT EXISTS "${_openssl_library}")
+			message(FATAL_ERROR "System OpenSSL library is unavailable: ${_openssl_library}")
+		endif()
+		file(REAL_PATH "${_openssl_library}" _openssl_real_path)
+		if(NOT _openssl_real_path IN_LIST _resolved_real_paths)
+			message(FATAL_ERROR "Installed consumer does not resolve selected system OpenSSL: ${_openssl_real_path}; unresolved: ${_unresolved_dependencies}")
+		endif()
+	endforeach()
+	message(STATUS "Installed consumer resolves the selected system OpenSSL libraries")
+endif()
+
 execute_process(
 	COMMAND "${CMAKE_COMMAND}" -E env "${_runtime_variable}=${_runtime_path}" "${_consumer_executable}"
 	RESULT_VARIABLE _run_result

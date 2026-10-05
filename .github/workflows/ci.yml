@@ -276,6 +276,7 @@ jobs:
             -DWITH_POSTGRES=${{ matrix.dependencies }}
             -DWITH_MARIADB=${{ matrix.dependencies }}
             -DWITH_MSSQL=${{ matrix.dependencies }}
+            ${{ matrix.dependencies != 'OFF' && format('-DWITH_OPENSSL={0}', matrix.dependencies) || '' }}
             -DWITH_STORMBYTE=BUNDLED
           run-tests: true
           ctest-options: --output-on-failure --test-dir ${{ github.workspace }}/build/test
@@ -390,8 +391,8 @@ jobs:
           brew install sqlite postgresql@15 mariadb-connector-c freetds
           echo "CMAKE_PREFIX_PATH=$(brew --prefix):$(brew --prefix sqlite):$(brew --prefix postgresql@15):$(brew --prefix mariadb-connector-c):$(brew --prefix freetds):${CMAKE_PREFIX_PATH:-}" >> "$GITHUB_ENV"
 
-      - name: OpenSSL for bundled database clients
-        if: matrix.dependencies != 'OFF'
+      - name: OpenSSL for system dependencies
+        if: matrix.dependencies == 'SYSTEM'
         shell: bash
         run: |
           set -euo pipefail
@@ -425,6 +426,7 @@ jobs:
             -DWITH_POSTGRES=${{ matrix.dependencies }}
             -DWITH_MARIADB=${{ matrix.dependencies }}
             -DWITH_MSSQL=${{ matrix.dependencies }}
+            ${{ matrix.dependencies != 'OFF' && format('-DWITH_OPENSSL={0}', matrix.dependencies) || '' }}
             -DWITH_STORMBYTE=BUNDLED
           run-tests: true
           ctest-options: --output-on-failure --test-dir ${{ github.workspace }}/build/test
@@ -695,6 +697,7 @@ jobs:
             -DWITH_POSTGRES=BUNDLED
             -DWITH_MARIADB=BUNDLED
             -DWITH_MSSQL=BUNDLED
+            -DWITH_OPENSSL=BUNDLED
             -DWITH_STORMBYTE=BUNDLED
           run-tests: true
           ctest-options: --output-on-failure --test-dir ${{ github.workspace }}\build\test

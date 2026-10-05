@@ -30,13 +30,15 @@ if(NOT WITH_POSTGRES STREQUAL "OFF")
 			pltcl=disabled
 			uuid=none
 			ssl=openssl
-			pkg_config_path=${BUILDMASTER_INSTALL_LIBDIR}/pkgconfig
 			ldap=disabled
 			libcurl=disabled
 			dtrace=disabled
 			tap_tests=disabled
 			cassert=false
 		)
+		if(WITH_OPENSSL STREQUAL "BUNDLED")
+			list(APPEND POSTGRES_OPTIONS "pkg_config_path=${BUILDMASTER_INSTALL_LIBDIR}/pkgconfig")
+		endif()
 
 		if(WIN32)
 			# Meson reads openssl.pc without --static, so static OpenSSL's Winsock/CryptoAPI deps are dropped.

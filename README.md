@@ -59,7 +59,9 @@ The suite is split on purpose. Base, Buffer, Config, Crypto, Logger, Multimedia,
 
 ## Installation
 
-Needs a C++26 compiler, CMake 3.28 or newer, and StormByte-Logger 2.0.0 or newer. Logger supplies the bundled text and StormByte Base dependencies used by Database. Enable the backends you want (`WITH_SQLITE`, `WITH_POSTGRES`, `WITH_MARIADB`, `WITH_MSSQL`: `OFF`, `SYSTEM` or `BUNDLED`); `SYSTEM` discovers installed client libraries and `BUNDLED` builds them. Bundled PostgreSQL, MariaDB and MSSQL builds share the pinned OpenSSL 3.5.9 source in this repository and do not use host OpenSSL libraries; these builds require Perl and a make implementation, plus NASM on Windows. The bundled MSSQL backend uses FreeTDS DB-Library under its LGPL license; FreeTDS utilities and ODBC/CT-Library targets are excluded.
+Needs a C++26 compiler, CMake 3.28 or newer, and StormByte-Logger 2.0.0 or newer. Logger supplies the bundled text and StormByte Base dependencies used by Database. Enable the backends you want (`WITH_SQLITE`, `WITH_POSTGRES`, `WITH_MARIADB`, `WITH_MSSQL`: `OFF`, `SYSTEM` or `BUNDLED`); `SYSTEM` discovers installed client libraries and `BUNDLED` builds them. The bundled MSSQL backend uses FreeTDS DB-Library under its LGPL license; FreeTDS utilities and ODBC/CT-Library targets are excluded.
+
+`WITH_OPENSSL` accepts `SYSTEM` or `BUNDLED` (default); `OFF` is not supported. Windows always forces `BUNDLED`, regardless of the requested value. It selects TLS dependencies for bundled PostgreSQL, MariaDB and FreeTDS clients. `BUNDLED` builds their common pinned OpenSSL 3.5.9 dependency as static libraries and requires Perl and a make implementation, plus NASM on Windows. `SYSTEM` uses installed dynamic OpenSSL libraries and development files without requesting static archives; PostgreSQL uses Meson's normal OpenSSL discovery. Already-installed system database clients keep their own TLS dependencies. Changing dependency modes requires a clean build directory.
 
 ```sh
 git clone --recurse-submodules https://github.com/StormByte-Suite/StormByte-Database.git
