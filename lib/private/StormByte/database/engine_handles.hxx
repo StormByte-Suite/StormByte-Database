@@ -41,6 +41,8 @@
 
 #pragma once
 
+#include <StormByte/database/visibility.h>
+
 /**
  * @namespace StormByte
  * @brief Root namespace of the StormByte C++ suite.
@@ -60,7 +62,7 @@ namespace StormByte {
 			 * @struct ConnectionHandle
 			 * @brief Private opaque owner for a native MariaDB connection handle.
 			 */
-			struct ConnectionHandle {
+			struct STORMBYTE_DATABASE_PRIVATE ConnectionHandle {
 				void* m_native_connection{}; ///< Driver connection handle, stored opaquely.
 			};
 
@@ -68,7 +70,7 @@ namespace StormByte {
 			 * @struct StatementHandle
 			 * @brief Private opaque connection and statement handles for MariaDB.
 			 */
-			struct StatementHandle {
+			struct STORMBYTE_DATABASE_PRIVATE StatementHandle {
 				void* m_native_connection{}; ///< Borrowed driver connection handle.
 				void* m_native_statement{}; ///< Driver statement handle.
 			};
@@ -83,7 +85,7 @@ namespace StormByte {
 			 * @struct StatementHandle
 			 * @brief Private borrowed DB-Library process handle for a statement.
 			 */
-			struct StatementHandle {
+			struct STORMBYTE_DATABASE_PRIVATE StatementHandle {
 				void* m_native_connection{}; ///< Borrowed DB-Library process handle, stored opaquely.
 			};
 
@@ -91,7 +93,7 @@ namespace StormByte {
 			 * @struct ConnectionHandle
 			 * @brief Private opaque DB-Library process and callback state.
 			 */
-			struct ConnectionHandle {
+			struct STORMBYTE_DATABASE_PRIVATE ConnectionHandle {
 				void* m_native_connection{}; ///< DB-Library process handle, stored opaquely.
 			};
 		}
@@ -105,7 +107,7 @@ namespace StormByte {
 			 * @struct ConnectionHandle
 			 * @brief Private opaque owner for a native PostgreSQL connection handle.
 			 */
-			struct ConnectionHandle {
+			struct STORMBYTE_DATABASE_PRIVATE ConnectionHandle {
 				void* m_native_connection{}; ///< PostgreSQL connection handle, stored opaquely.
 			};
 
@@ -113,7 +115,7 @@ namespace StormByte {
 			 * @struct StatementHandle
 			 * @brief Private borrowed PostgreSQL connection handle for a statement.
 			 */
-			struct StatementHandle {
+			struct STORMBYTE_DATABASE_PRIVATE StatementHandle {
 				void* m_native_connection{}; ///< Borrowed PostgreSQL connection handle, stored opaquely.
 			};
 		}
@@ -127,7 +129,7 @@ namespace StormByte {
 			 * @struct ConnectionHandle
 			 * @brief Private opaque owner for a native SQLite database handle.
 			 */
-			struct ConnectionHandle {
+			struct STORMBYTE_DATABASE_PRIVATE ConnectionHandle {
 				void* m_native_connection{}; ///< SQLite database handle, stored opaquely.
 			};
 
@@ -135,7 +137,7 @@ namespace StormByte {
 			 * @struct StatementHandle
 			 * @brief Private opaque owner for a native SQLite statement handle.
 			 */
-			struct StatementHandle {
+			struct STORMBYTE_DATABASE_PRIVATE StatementHandle {
 				void* m_native_statement{}; ///< SQLite statement handle, stored opaquely.
 			};
 		}

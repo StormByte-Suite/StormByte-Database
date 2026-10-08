@@ -83,7 +83,7 @@ namespace {
 		return "Unknown FreeTDS DB-Library error";
 	}
 
-	struct RpcParameter {
+	struct STORMBYTE_DATABASE_PRIVATE RpcParameter {
 		int type{SYBVARCHAR};
 		DBINT length{};
 		std::string text;
@@ -191,7 +191,7 @@ namespace {
 }
 
 namespace StormByte::Database::MSSQL {
-	struct CallbackHandlers {
+	struct STORMBYTE_DATABASE_PRIVATE CallbackHandlers {
 		static int Error(DBPROCESS* const process, const int severity, const int database_error,
 			const int operating_system_error, char* database_message, char* operating_system_message) {
 			(void)severity;

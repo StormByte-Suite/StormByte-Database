@@ -160,7 +160,7 @@ namespace StormByte {
 					 * @struct Utf8Path
 					 * @brief Distinguishes the DLL-safe path constructor from caller-side adapters.
 					 */
-					struct Utf8Path {};
+					struct STORMBYTE_DATABASE_PRIVATE Utf8Path {};
 
 					/**
 					 * @brief Store an owned UTF-8 database path inside Database.

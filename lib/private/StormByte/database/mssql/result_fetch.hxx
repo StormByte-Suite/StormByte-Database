@@ -61,7 +61,7 @@ namespace StormByte {
 		 */
 		namespace MSSQL {
 			/** @brief Copy the current DB-Library result stream into owned Rows. */
-			ExpectedRows StepResults(struct tds_dblib_dbprocess* process) noexcept;
+			STORMBYTE_DATABASE_PRIVATE ExpectedRows StepResults(struct tds_dblib_dbprocess* process) noexcept;
 		}
 	}
 }

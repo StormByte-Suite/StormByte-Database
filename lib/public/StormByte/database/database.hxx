@@ -83,7 +83,7 @@ namespace StormByte {
 				 * @class OperationGuard
 				 * @brief RAII ownership of the connection operation gate.
 				 */
-				class OperationGuard final {
+				class STORMBYTE_DATABASE_PUBLIC OperationGuard final {
 					public:
 						/**
 						 * @brief Acquire the connection operation gate.

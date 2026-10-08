@@ -51,7 +51,7 @@
 
 using namespace StormByte::Database;
 
-class Database::OperationMutex final {
+class STORMBYTE_DATABASE_PRIVATE Database::OperationMutex final {
 	public:
 		void lock() noexcept {
 			m_gate.Lock();
@@ -72,7 +72,7 @@ class Database::OperationMutex final {
 		StormByte::Size m_depth;
 };
 
-struct Database::PreparedStatements {
+struct STORMBYTE_DATABASE_PRIVATE Database::PreparedStatements {
 	StormByte::Safe::Map<StormByte::Safe::String, StormByte::Safe::Shared<StormByte::Safe::Unique<PreparedSTMT>>> values;
 };
 

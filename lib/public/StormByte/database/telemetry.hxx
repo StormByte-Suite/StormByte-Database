@@ -102,7 +102,7 @@ namespace StormByte {
 		 * @struct OperationMetrics
 		 * @brief Immutable view of cumulative metrics for one operation category.
 		 */
-		struct OperationMetrics {
+		struct STORMBYTE_DATABASE_PUBLIC OperationMetrics {
 			std::uint64_t Attempts{};         ///< Number of recorded attempts.
 			std::uint64_t Successes{};        ///< Number of successful attempts.
 			std::uint64_t Failures{};         ///< Number of failed attempts.
@@ -245,7 +245,7 @@ namespace StormByte {
 				 * @struct Counter
 				 * @brief Atomic aggregates for one operation category.
 				 */
-				struct Counter {
+				struct STORMBYTE_DATABASE_PRIVATE Counter {
 					StormByte::Safe::Atomic<std::uint64_t> successes{0}; ///< Success count.
 					StormByte::Safe::Atomic<std::uint64_t> failures{0}; ///< Failure count.
 					StormByte::Safe::Atomic<std::uint64_t> minimum_nanoseconds{std::numeric_limits<std::uint64_t>::max()}; ///< Minimum duration.

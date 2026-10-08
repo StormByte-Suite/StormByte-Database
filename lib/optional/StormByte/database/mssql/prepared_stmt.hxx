@@ -75,7 +75,7 @@ namespace StormByte {
 			 */
 			class STORMBYTE_DATABASE_PUBLIC PreparedSTMT final : public StormByte::Database::PreparedSTMT {
 				friend class MSSQL;
-				struct ConstructionKey {
+				struct STORMBYTE_DATABASE_PRIVATE ConstructionKey {
 					private:
 						ConstructionKey() noexcept = default;
 						friend class MSSQL;
