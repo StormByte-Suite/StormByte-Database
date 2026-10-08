@@ -41,18 +41,43 @@
 
 #include <StormByte/database/database.hxx>
 #include <StormByte/safe/map.hxx>
+#include <StormByte/thread_lock.hxx>
+
 #include <exception>
+#include <functional>
+#include <mutex>
 #include <string>
 #include <string_view>
 
 using namespace StormByte::Database;
+
+class Database::OperationMutex final {
+	public:
+		void lock() noexcept {
+			m_gate.Lock();
+			m_depth = StormByte::Size{static_cast<std::size_t>(m_depth) + 1};
+		}
+
+		void unlock() noexcept {
+			if (m_depth == StormByte::Size{})
+				return;
+			const std::size_t depth = static_cast<std::size_t>(m_depth) - 1;
+			m_depth = StormByte::Size{depth};
+			if (depth == 0)
+				m_gate.Unlock();
+		}
+
+	private:
+		StormByte::ThreadLock m_gate;
+		StormByte::Size m_depth;
+};
 
 struct Database::PreparedStatements {
 	StormByte::Safe::Map<StormByte::Safe::String, StormByte::Safe::Shared<StormByte::Safe::Unique<PreparedSTMT>>> values;
 };
 
 Database::Database(const StormByte::Safe::Shared<Logger::Log>& logger):
-	m_operation_mutex(StormByte::Safe::Shared<std::recursive_mutex>::MakePointer<std::recursive_mutex>()),
+	m_operation_mutex(StormByte::Safe::Shared<OperationMutex>::MakePointer<OperationMutex>()),
 	m_telemetry(StormByte::Safe::Shared<class Telemetry>::MakePointer<class Telemetry>()),
 	m_connected(false), m_ssl_mode(SslMode::Default), m_logger(logger),
 	m_prepared_stmts(StormByte::Safe::Unique<PreparedStatements>::MakePointer<PreparedStatements>()) {}
@@ -60,7 +85,7 @@ Database::Database(const StormByte::Safe::Shared<Logger::Log>& logger):
 Database::Database(Database&& other) noexcept:
 	m_operation_mutex(other.m_operation_mutex),
 	m_connected(false), m_ssl_mode(SslMode::Default) {
-	std::lock_guard<std::recursive_mutex> lock(*other.m_operation_mutex);
+	std::lock_guard<OperationMutex> lock(*other.m_operation_mutex);
 	m_telemetry = other.m_telemetry;
 	m_logger = other.m_logger;
 	m_connected = std::exchange(other.m_connected, false);
@@ -79,10 +104,15 @@ Database& Database::operator=(Database&& other) noexcept {
 			m_telemetry = other.m_telemetry;
 		};
 		if (m_operation_mutex == other.m_operation_mutex) {
-			std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
+			std::lock_guard<OperationMutex> lock(*m_operation_mutex);
 			transfer();
 		} else {
-			std::scoped_lock lock(*m_operation_mutex, *other.m_operation_mutex);
+			OperationMutex* first = m_operation_mutex.get();
+			OperationMutex* second = other.m_operation_mutex.get();
+			if (std::less<OperationMutex*>{}(second, first))
+				std::swap(first, second);
+			std::lock_guard<OperationMutex> first_lock(*first);
+			std::lock_guard<OperationMutex> second_lock(*second);
 			transfer();
 		}
 	}
@@ -92,18 +122,18 @@ Database& Database::operator=(Database&& other) noexcept {
 Database::~Database() noexcept = default;
 
 StormByte::Safe::Shared<class Telemetry> Database::Telemetry() const noexcept {
-	std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
+	OperationGuard lock{*this};
 	return m_telemetry;
 }
 
 void Database::Telemetry(StormByte::Safe::Shared<class Telemetry> telemetry) noexcept {
-	std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
+	OperationGuard lock{*this};
 	if (telemetry)
 		m_telemetry = std::move(telemetry);
 }
 
 void Database::ClearPreparedSTMTs() noexcept {
-	std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
+	OperationGuard lock{*this};
 	if (m_prepared_stmts)
 		m_prepared_stmts->values.clear();
 }
@@ -119,7 +149,7 @@ PreparedSTMT* Database::FindPreparedSTMT(std::string_view name) {
 }
 bool Database::Connect() noexcept {
 	auto telemetry = TrackOperation(Operation::Connect);
-	std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
+	OperationGuard lock{*this};
 	if (m_logger)
 		*m_logger << Logger::Level::LowLevel << "Connect enter" << std::endl;
 	DoPreConnect();
@@ -139,7 +169,7 @@ bool Database::Connect() noexcept {
 
 void Database::Disconnect() noexcept {
 	auto telemetry = TrackOperation(Operation::Disconnect);
-	std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
+	OperationGuard lock{*this};
 	if (!m_connected) {
 		telemetry.Complete(true);
 		return;
@@ -161,7 +191,7 @@ void Database::PrepareSTMT(std::string_view name, std::string_view query) noexce
 
 void Database::DoPrepareSTMT(std::string_view name, std::string_view query) noexcept {
 	auto telemetry = TrackOperation(Operation::PrepareStatement);
-	std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
+	OperationGuard lock{*this};
 	if (m_logger)
 		*m_logger << Logger::Level::Debug << "Preparing statement '" << name << "': " << query << std::endl;
 	if (!m_prepared_stmts)
@@ -179,9 +209,8 @@ void Database::DoPrepareSTMT(std::string_view name, std::string_view query) noex
 StormByte::Expected<Transaction, TransactionError> Database::BeginTransaction(IsolationLevel level) {
 	auto telemetry = TrackOperation(Operation::BeginTransaction);
 	bool begun = false;
-	std::unique_lock<std::recursive_mutex> lock;
+	OperationGuard lock{*this};
 	try {
-		lock = std::unique_lock<std::recursive_mutex>(*m_operation_mutex);
 		if (m_logger)
 			*m_logger << Logger::Level::Debug << "BeginTransaction" << std::endl;
 		DoBeginTransaction(level);
@@ -190,15 +219,15 @@ StormByte::Expected<Transaction, TransactionError> Database::BeginTransaction(Is
 		telemetry.Complete(true);
 		return transaction;
 	} catch (const StormByte::Exception& error) {
-		if (begun && lock.owns_lock())
+		if (begun)
 			DoSilentQuery("ROLLBACK;");
 		return Unexpected<TransactionError>(error.what());
 	} catch (const std::exception& error) {
-		if (begun && lock.owns_lock())
+		if (begun)
 			DoSilentQuery("ROLLBACK;");
 		return Unexpected<TransactionError>(error.what());
 	} catch (...) {
-		if (begun && lock.owns_lock())
+		if (begun)
 			DoSilentQuery("ROLLBACK;");
 		return Unexpected<TransactionError>("Unknown backend failure");
 	}
@@ -206,7 +235,7 @@ StormByte::Expected<Transaction, TransactionError> Database::BeginTransaction(Is
 
 void Database::CommitTransaction() {
 	auto telemetry = TrackOperation(Operation::CommitTransaction);
-	std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
+	OperationGuard lock{*this};
 	if (m_logger)
 		*m_logger << Logger::Level::Debug << "CommitTransaction" << std::endl;
 	if (!DoSilentQuery("COMMIT;"))
@@ -216,8 +245,25 @@ void Database::CommitTransaction() {
 
 void Database::RollbackTransaction() {
 	auto telemetry = TrackOperation(Operation::RollbackTransaction);
-	std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
+	OperationGuard lock{*this};
 	if (m_logger)
 		*m_logger << Logger::Level::Debug << "RollbackTransaction" << std::endl;
 	telemetry.Complete(DoSilentQuery("ROLLBACK;"));
+}
+
+Database::OperationGuard::OperationGuard(const Database& database) noexcept:
+	m_database(database) {
+	m_database.LockOperation();
+}
+
+Database::OperationGuard::~OperationGuard() noexcept {
+	m_database.UnlockOperation();
+}
+
+void Database::LockOperation() const noexcept {
+	m_operation_mutex->lock();
+}
+
+void Database::UnlockOperation() const noexcept {
+	m_operation_mutex->unlock();
 }

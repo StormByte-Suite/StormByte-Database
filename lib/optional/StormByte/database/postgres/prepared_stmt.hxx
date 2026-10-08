@@ -43,13 +43,11 @@
 
 #include <StormByte/database/prepared_stmt.hxx>
 #include <StormByte/database/value.hxx>
+#include <StormByte/safe/pointers.hxx>
+#include <StormByte/safe/vector.hxx>
 #include <StormByte/size.hxx>
 
-#include <memory>
-#include <string>
-#include <vector>
-
-struct pg_conn;
+#include <string_view>
 
 /**
  * @namespace StormByte
@@ -66,6 +64,11 @@ namespace StormByte {
 		 * @brief PostgreSQL backend of the Database module.
 		 */
 		namespace Postgres {
+			/**
+			 * @struct StatementHandle
+			 * @brief Private opaque holder for the borrowed PostgreSQL connection.
+			 */
+			struct StatementHandle;
 			/**
 			 * @class PreparedSTMT
 			 * @brief PostgreSQL prepared statement (PQexecPrepared).
@@ -118,9 +121,9 @@ namespace StormByte {
 						const StormByte::Safe::Shared<StormByte::Database::Telemetry>& telemetry);
 
 				private:
-					struct pg_conn *m_conn;		 ///< Connection handle
+					StormByte::Safe::Unique<StatementHandle> m_statement_handle; ///< Opaque borrowed connection state.
 					StormByte::Safe::String m_stmt_name; ///< Base-owned server-side statement name
-					std::vector<Value> m_params; ///< Bound values, retained until execution
+					StormByte::Safe::Vector<Value> m_params; ///< Bound values on Base's heap, retained until execution.
 
 					/**
 					 * @brief Copy statement name and SQL text.

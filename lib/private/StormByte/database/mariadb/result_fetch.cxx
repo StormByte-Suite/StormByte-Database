@@ -123,7 +123,7 @@ StormByte::Database::ExpectedRows StormByte::Database::MariaDB::StepResults(MYSQ
 				case MYSQL_TYPE_LONG_BLOB:
 				case MYSQL_TYPE_BLOB: {
 					if (field && field->charsetnr == 63) {
-						StormByte::BinaryData blob{
+						StormByte::Safe::Binary blob{
 							reinterpret_cast<const std::byte*>(row[column_index]),
 							StormByte::ByteSize{length}
 						};

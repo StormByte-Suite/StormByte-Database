@@ -1,23 +1,61 @@
 /*
+ * Copyright (C) 2024-2026 David C. Manuelda (StormBytePP)
+ *
+ * This file is part of StormByte-Database.
+ *
+ * StormByte-Database original source is dual-licensed:
+ *
+ * 1. GNU Lesser General Public License v3.0 (or later)
+ *    You may redistribute and/or modify this file under the terms of the
+ *    GNU Lesser General Public License as published by the Free Software
+ *    Foundation, either version 3 of the License, or (at your option)
+ *    any later version.
+ *
+ * 2. Commercial license
+ *    Alternatively, this file may be used under the terms of a commercial
+ *    license agreement with the copyright holder
+ *    (David C. Manuelda <StormByte@gmail.com>).
+ *
+ * Both licenses apply only to original StormByte-Database source in this
+ * repository. They do not cover other StormByte modules or any third-party
+ * material shipped with this repository (including everything under
+ * thirdparty/, and in particular the bundled StormByte-Logger tree and
+ * the PostgreSQL, MariaDB and SQLite trees), which remain under their own
+ * licenses.
+ *
+ * Neither license grants any patent rights. Any patent licenses required
+ * to use this software or third-party components must be obtained separately
+ * from the patent holders.
+ *
+ * StormByte-Database is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * version 3 along with StormByte-Database. If not, see
+ * <https://www.gnu.org/licenses/lgpl-3.0.html>.
+ *
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
+
 #include <StormByte/database/postgres/telemetry.hxx>
 
 using namespace StormByte::Database::Postgres;
 
-Telemetry::Telemetry() noexcept = default;
+Telemetry::Telemetry() = default;
 Telemetry::~Telemetry() noexcept = default;
 
-std::uint64_t Telemetry::SerializationConflicts() const noexcept { return m_serialization_conflicts.load(std::memory_order_acquire); }
-std::uint64_t Telemetry::Deadlocks() const noexcept { return m_deadlocks.load(std::memory_order_acquire); }
-std::uint64_t Telemetry::ConnectionErrors() const noexcept { return m_connection_errors.load(std::memory_order_acquire); }
+std::uint64_t Telemetry::SerializationConflicts() const noexcept { return m_serialization_conflicts.load(StormByte::Safe::MemoryOrder::Acquire); }
+std::uint64_t Telemetry::Deadlocks() const noexcept { return m_deadlocks.load(StormByte::Safe::MemoryOrder::Acquire); }
+std::uint64_t Telemetry::ConnectionErrors() const noexcept { return m_connection_errors.load(StormByte::Safe::MemoryOrder::Acquire); }
 
 void Telemetry::RecordEvent(const BackendEvent event) noexcept {
 	StormByte::Database::Telemetry::RecordEvent(event);
 	switch (event) {
-		case BackendEvent::Serialization: m_serialization_conflicts.fetch_add(1, std::memory_order_relaxed); break;
-		case BackendEvent::Deadlock: m_deadlocks.fetch_add(1, std::memory_order_relaxed); break;
-		case BackendEvent::Connection: m_connection_errors.fetch_add(1, std::memory_order_relaxed); break;
+		case BackendEvent::Serialization: m_serialization_conflicts.fetch_add(std::uint64_t{1}, StormByte::Safe::MemoryOrder::Relaxed); break;
+		case BackendEvent::Deadlock: m_deadlocks.fetch_add(std::uint64_t{1}, StormByte::Safe::MemoryOrder::Relaxed); break;
+		case BackendEvent::Connection: m_connection_errors.fetch_add(std::uint64_t{1}, StormByte::Safe::MemoryOrder::Relaxed); break;
 		default: break;
 	}
 }

@@ -45,11 +45,7 @@
 #include <StormByte/database/mariadb/prepared_stmt.hxx>
 #include <StormByte/database/mariadb/telemetry.hxx>
 
-#include <memory>
-#include <string>
 #include <string_view>
-
-struct st_mysql;
 
 /**
  * @namespace StormByte
@@ -66,6 +62,12 @@ namespace StormByte {
 		 * @brief MariaDB backend of the Database module.
 		 */
 		namespace MariaDB {
+			/**
+			 * @struct ConnectionHandle
+			 * @brief Private opaque holder for the native MariaDB connection.
+			 */
+			struct ConnectionHandle;
+
 			/**
 			 * @class MariaDB
 			 * @brief MariaDB / MySQL backend.
@@ -143,7 +145,7 @@ namespace StormByte {
 					StormByte::Safe::String m_password;	 ///< Base-owned password
 					StormByte::Safe::String m_dbname;		 ///< Base-owned database name
 					int m_port;				 ///< Port
-					struct st_mysql *m_conn; ///< Connection handle
+					StormByte::Safe::Unique<ConnectionHandle> m_connection_handle; ///< Opaque owner for the native MariaDB connection.
 
 					/**
 					 * @brief Connect via mysql_real_connect.

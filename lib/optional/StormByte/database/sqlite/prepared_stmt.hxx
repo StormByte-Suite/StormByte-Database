@@ -43,9 +43,8 @@
 
 #include <StormByte/database/prepared_stmt.hxx>
 #include <StormByte/database/value.hxx>
+#include <StormByte/safe/pointers.hxx>
 #include <StormByte/size.hxx>
-
-struct sqlite3_stmt;
 
 /**
  * @namespace StormByte
@@ -62,6 +61,11 @@ namespace StormByte {
 		 * @brief SQLite backend of the Database module.
 		 */
 		namespace SQLite {
+			/**
+			 * @struct StatementHandle
+			 * @brief Private opaque holder for the native SQLite statement.
+			 */
+			struct StatementHandle;
 			/**
 			 * @class PreparedSTMT
 			 * @brief SQLite prepared statement.
@@ -114,7 +118,7 @@ namespace StormByte {
 						const StormByte::Safe::Shared<StormByte::Database::Telemetry>& telemetry);
 
 				private:
-					sqlite3_stmt *m_stmt; ///< SQLite statement handle
+					StormByte::Safe::Unique<StatementHandle> m_statement_handle; ///< Opaque owner for the native SQLite statement.
 					bool m_bind_error;	  ///< Whether binding failed or exceeded SQLite integer range
 
 					/**

@@ -43,14 +43,11 @@
 
 #include <StormByte/database/prepared_stmt.hxx>
 #include <StormByte/database/value.hxx>
+#include <StormByte/safe/pointers.hxx>
+#include <StormByte/safe/vector.hxx>
 #include <StormByte/size.hxx>
 
-#include <memory>
-#include <string>
-#include <vector>
-
-struct st_mysql;
-struct st_mysql_stmt;
+#include <string_view>
 
 /**
  * @namespace StormByte
@@ -68,6 +65,11 @@ namespace StormByte {
 		 */
 		namespace MariaDB {
 			class MariaDB;
+			/**
+			 * @struct StatementHandle
+			 * @brief Private opaque holder for MariaDB connection and statement handles.
+			 */
+			struct StatementHandle;
 
 			/**
 			 * @class PreparedSTMT
@@ -113,18 +115,21 @@ namespace StormByte {
 					 * @param key Internal construction key.
 					 * @param name Statement name.
 					 * @param query SQL text.
-					 * @param conn Connection handle.
 					 * @param logger Non-owning logger observer.
 					 * @param telemetry Shared operation telemetry.
 					 */
-					PreparedSTMT(ConstructionKey key, std::string_view name, std::string_view query, struct st_mysql* conn,
+					PreparedSTMT(ConstructionKey key, std::string_view name, std::string_view query,
 						const StormByte::Safe::Shared<Logger::Log>& logger,
 						const StormByte::Safe::Shared<StormByte::Database::Telemetry>& telemetry);
 
 				private:
-					struct st_mysql *m_conn;						  ///< Connection handle
-					struct st_mysql_stmt *m_stmt;					  ///< Statement handle
-					std::vector<StormByte::Database::Value> m_params; ///< Bound parameters
+					StormByte::Safe::Unique<StatementHandle> m_statement_handle; ///< Opaque owner for native MariaDB statement handles.
+					StormByte::Safe::Vector<StormByte::Database::Value> m_params; ///< Bound parameters on Base's heap.
+					/**
+					 * @brief Prepare the native statement after the backend supplies its connection.
+					 * @return Whether statement initialization succeeded.
+					 */
+					bool Initialize() noexcept;
 
 					/**
 					 * @brief Copy statement name and SQL text.
@@ -138,7 +143,7 @@ namespace StormByte {
 					 * @param params Parameter vector.
 					 * @param index Index to ensure.
 					 */
-					static void EnsureParamSize(std::vector<StormByte::Database::Value> &params, StormByte::Size index);
+					static void EnsureParamSize(StormByte::Safe::Vector<StormByte::Database::Value> &params, StormByte::Size index);
 
 					/**
 					 * @brief Store a bound value at @p index.

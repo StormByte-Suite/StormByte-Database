@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 StormByte Database is the C++26 SQL layer of the StormByte suite.
 
-One API covers SQLite, PostgreSQL and MariaDB.
+One API covers SQLite, PostgreSQL, MariaDB and Microsoft SQL Server (MSSQL).
 Backends are base classes: you derive your schema, prepare statements and hook connect there.
 This repository is not Base, Buffer, Config, Crypto, Logger, Multimedia, Network or System.
 It requires StormByte-Logger 2.0.0 or newer, which supplies the bundled text and StormByte Base dependencies.
@@ -23,14 +23,14 @@ If you landed here from a release link and have not read the tree:
 ## [Unreleased]
 [Unreleased]: https://github.com/StormByte-Suite/StormByte-Database/compare/2.0.0...HEAD
 
-## [2.0.0] - 2026-10-05
+## [2.0.0] - 2026-10-08
 
 ### Changed
 
 - **DLL boundary** — Hardened provider-owned storage while preserving inheritable database facades:
 	- Hid the prepared-statement registry behind an opaque `Safe::Unique` owner on Base's heap and migrated its entries to `Safe::Map<Safe::String, Safe::Shared<Safe::Unique<PreparedSTMT>>>`. Creator-module callbacks retain map nodes and allocator state; copyable handles keep each statement uniquely owned without changing inheritable factories returning `Safe::Unique`.
 	- Column names and prepared-statement names and SQL text use `Safe::String`, so inline accessors no longer interpret another module's standard strings.
-	- Migrated private connection settings in inheritable PostgreSQL, MariaDB and MSSQL backends, PostgreSQL's server-side statement name and MSSQL's callback diagnostics to Base-owned `Safe::String`. Out-of-line special members retain provider-controlled lifetime; local STL temporaries and opaque result and parameter storage stay within Database. Safe allocation ownership does not remove the compatible C++/STL ABI, RTTI, calling-convention and provider-lifetime requirements for derived objects.
+	- Migrated private connection settings in inheritable PostgreSQL, MariaDB and MSSQL backends, PostgreSQL's server-side statement name and MSSQL's callback diagnostics to Base-owned `Safe::String`. Rows and positional prepared values use Base-owned `Safe::Vector`/`Safe::Map`; telemetry counters use `Safe::Atomic`. Native connection and statement handles are hidden behind semantic holders defined in non-installed private headers, while client-specific temporary buffers remain local to Database implementations. Safe allocation ownership does not remove the compatible C++ ABI, RTTI, calling-convention and provider-lifetime requirements for derived objects.
 	- SQLite's protected native-path constructors convert to Base-owned UTF-8 in forced-inline caller adapters; rvalue paths no longer transfer caller STL allocations to the Database DLL, and Windows paths use SQLite's UTF-8 encoding.
 	- Exported values, rows, transactions, database facades, prepared statements and telemetry declare `STORMBYTE_DECLARE_MAYBE_SAFE` with compatible-ABI and provider-lifetime requirements. Consumer derivatives remain responsible for their additional state and their own conditional declaration.
 - **MSSQL backend** — Added an optional Microsoft SQL Server backend using the LGPL FreeTDS DB-Library client. Bundled builds compile only the static DB-Library and its required TDS support archives; logical prepared statements use `sp_executesql` RPC with typed, separately transmitted parameters.
@@ -38,7 +38,7 @@ If you landed here from a release link and have not read the tree:
 - **Database API and connection behavior**
 	- **Breaking**: Removed accessor `Get`/`Set` prefixes: `GetTelemetry()` becomes `Telemetry()`, protected `SetTelemetry(handle)` becomes `Telemetry(handle)`, and `GetSslMode()` / `SetSslMode(mode)` become `SslMode()` / `SslMode(mode)`. `Value::Get<T>()` is unchanged. Backend text-member layouts changed with the Safe storage migration; rebuild derived consumers.
 	- **Breaking**: `BeginTransaction` now returns `Expected<Transaction, TransactionError>` instead of throwing when transaction start fails. `Database` construction may also report allocation failure rather than terminating from a `noexcept` constructor; rebuild consumers against this API revision.
-	- **Breaking**: The public API contract changed beyond the DLL boundary fix. Inputs and storage use StormByte 2.0 types (`StormByte::Safe::String`, `StormByte::BinaryData`, `StormByte::Size`, `StormByte::ByteSize`, `std::string_view`), backend logger ownership is `StormByte::Safe::Shared<Logger::Log>` instead of raw pointers, and statement/query factory signatures accept view-based names and SQL text rather than rvalue strings. Input views are consumed within Database and are not retained across the DLL boundary; owned text uses Base Safe types. The exported layout of `Database`, `PreparedSTMT`, `Row`, `Rows`, `Value`, `NamedValue` and backend result containers was tightened to enforce DLL-safe ownership and out-of-line heap operations; consumers must recompile and update code that relied on old string, logger, or STL-owning ABI assumptions.
+	- **Breaking**: The public API contract changed beyond the DLL boundary fix. Inputs and storage use StormByte 2.0 types (`StormByte::Safe::String`, `StormByte::Safe::Binary`, `StormByte::Size`, `StormByte::ByteSize`, `std::string_view`), backend logger ownership is `StormByte::Safe::Shared<Logger::Log>` instead of raw pointers, and statement/query factory signatures accept view-based names and SQL text rather than rvalue strings. Input views are consumed within Database and are not retained across the DLL boundary; owned text and bytes use Base Safe types. The exported layout of `Database`, `PreparedSTMT`, `Row`, `Rows`, `Value`, `NamedValue` and backend result containers was tightened to enforce DLL-safe ownership and out-of-line heap operations; consumers must recompile and update code that relied on old string, logger, or STL-owning ABI assumptions.
 	- **Breaking**: Added shared telemetry state to exported `Database` and `PreparedSTMT` objects; rebuild consumers against this ABI revision.
 	- **Breaking**: `Value::Type::LongInteger` and `Value::Type::UnsignedLongInteger` now store `long long int` and `unsigned long long int`, so they are 64-bit on every platform; use `Get<long long int>()` / `Get<unsigned long long int>()`. `long int` and `unsigned long int` are still accepted when constructing values.
 	- Serialized operations on each built-in connection. RAII transactions hold exclusive connection access through commit or rollback and must remain on their creating thread.

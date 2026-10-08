@@ -48,8 +48,8 @@
 #include <StormByte/database/typedefs.hxx>
 #include <StormByte/logger/log.hxx>
 #include <StormByte/safe/pointers.hxx>
+#include <StormByte/size.hxx>
 
-#include <mutex>
 #include <string_view>
 
 /**
@@ -67,10 +67,45 @@ namespace StormByte {
 		 * @brief Abstract backend.
 		 *
 		 * @note Operations on one connection are serialized. A Transaction reserves its connection and must remain on its creating thread.
-		 * @note Custom backends must lock @c m_operation_mutex in public operations that access backend state.
+		 * @note Custom backends must use @ref OperationGuard in public operations that access backend state.
 		 * @note Inheritance-oriented. Concrete backends expose protected constructors. Derive, call the backend constructor, override hooks if needed.
 		 */
 		class STORMBYTE_DATABASE_PUBLIC Database {
+			private:
+				/**
+				 * @class OperationMutex
+				 * @brief Private reentrant operation gate defined in the Database module.
+				 */
+				class OperationMutex;
+
+			protected:
+				/**
+				 * @class OperationGuard
+				 * @brief RAII ownership of the connection operation gate.
+				 */
+				class OperationGuard final {
+					public:
+						/**
+						 * @brief Acquire the connection operation gate.
+						 * @param database Database whose operations are serialized.
+						 */
+						explicit OperationGuard(const Database& database) noexcept;
+
+						/**
+						 * @brief Copying a lock guard is disabled.
+						 * @param other Source guard.
+						 */
+						OperationGuard(const OperationGuard& other) = delete;
+
+						/**
+						 * @brief Release the connection operation gate.
+						 */
+						~OperationGuard() noexcept;
+
+					private:
+						const Database& m_database; ///< Database whose gate is held.
+				};
+
 			public:
 				/**
 				 * @brief Construct with an optional logger.
@@ -126,7 +161,7 @@ namespace StormByte {
 				 * @return true if connected.
 				 */
 				bool IsConnected() const noexcept {
-					std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
+					OperationGuard lock{*this};
 					return m_connected;
 				}
 
@@ -135,7 +170,7 @@ namespace StormByte {
 				 * @param mode Desired SSL mode.
 				 */
 				void SslMode(StormByte::Database::SslMode mode) noexcept {
-					std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
+					OperationGuard lock{*this};
 					m_ssl_mode = mode;
 				}
 
@@ -144,7 +179,7 @@ namespace StormByte {
 				 * @return Mode.
 				 */
 				StormByte::Database::SslMode SslMode() const noexcept {
-					std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
+					OperationGuard lock{*this};
 					return m_ssl_mode;
 				}
 
@@ -158,7 +193,7 @@ namespace StormByte {
 				template <typename... Args>
 				ExpectedRows ExecuteSTMT(std::string_view name, Args &&...args) {
 					auto telemetry = TrackOperation(Operation::PreparedStatement);
-					std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
+					OperationGuard lock{*this};
 					PreparedSTMT *statement = FindPreparedSTMT(name);
 					if (!statement)
 						return Unexpected<UnknownSTMT>(name);
@@ -200,7 +235,7 @@ namespace StormByte {
 
 			protected:
 				friend class Transaction;
-				StormByte::Safe::Shared<std::recursive_mutex> m_operation_mutex; ///< DLL-safe owner of the connection mutex
+				StormByte::Safe::Shared<OperationMutex> m_operation_mutex; ///< Base-heap owner of the private reentrant operation gate.
 				StormByte::Safe::Shared<class Telemetry> m_telemetry; ///< Shared cumulative counters for this connection.
 
 				/**
@@ -311,6 +346,18 @@ namespace StormByte {
 				virtual bool DoSilentQuery(std::string_view query) noexcept = 0;
 
 			private:
+				friend class Transaction;
+
+				/**
+				 * @brief Acquire the private connection operation gate.
+				 */
+				void LockOperation() const noexcept;
+
+				/**
+				 * @brief Release the private connection operation gate.
+				 */
+				void UnlockOperation() const noexcept;
+
 				/**
 				 * @struct PreparedStatements
 				 * @brief Opaque prepared-statement registry defined in the Database DLL.

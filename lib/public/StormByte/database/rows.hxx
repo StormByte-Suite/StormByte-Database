@@ -42,10 +42,10 @@
 #pragma once
 
 #include <StormByte/database/row.hxx>
+#include <StormByte/safe/vector.hxx>
 #include <StormByte/size.hxx>
 
 #include <iterator>
-#include <memory>
 
 /**
  * @namespace StormByte
@@ -71,8 +71,8 @@ namespace StormByte {
 				using const_pointer = const Row*;                                       ///< Read-only row pointer.
 				using iterator = pointer;                                               ///< Mutable pointer iterator.
 				using const_iterator = const_pointer;                                   ///< Read-only pointer iterator.
-				using reverse_iterator = std::reverse_iterator<iterator>;               ///< Mutable reverse iterator.
-				using const_reverse_iterator = std::reverse_iterator<const_iterator>;   ///< Read-only reverse iterator.
+				using reverse_iterator = StormByte::Safe::Vector<Row>::reverse_iterator; ///< Mutable reverse iterator.
+				using const_reverse_iterator = StormByte::Safe::Vector<Row>::const_reverse_iterator; ///< Read-only reverse iterator.
 
 				/**
 				 * @brief Default constructor.
@@ -244,13 +244,7 @@ namespace StormByte {
 				StormByte::Size Count() const noexcept;
 
 			private:
-				/**
-				 * @class ResultSet
-				 * @brief Private ordered row storage.
-				 */
-				struct ResultSet;
-
-				std::unique_ptr<ResultSet> m_results;	///< Opaque storage owned by the Database DLL
+				StormByte::Safe::Vector<Row> m_results; ///< Ordered Base-owned result rows.
 		};
 	}
 }

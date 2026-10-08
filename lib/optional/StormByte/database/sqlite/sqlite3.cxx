@@ -42,6 +42,7 @@
 #include <StormByte/database/sqlite/sqlite3.hxx>
 #include <StormByte/database/sqlite/result_fetch.hxx>
 #include <StormByte/database/sqlite/prepared_stmt.hxx>
+#include <StormByte/database/engine_handles.hxx>
 #include <sqlite3.h>
 #include <atomic>
 #include <limits>
@@ -58,13 +59,14 @@ namespace {
 SQLite3::SQLite3(const StormByte::Safe::Shared<Logger::Log>& logger)
 	: SQLite3(StormByte::Safe::String(":memory:"), logger, Utf8Path{}) {}
 SQLite3::SQLite3(const StormByte::Safe::String& dbfile, const StormByte::Safe::Shared<Logger::Log>& logger, Utf8Path)
-	: Database(logger), m_database_file(dbfile), m_database(nullptr) {
+	: Database(logger), m_database_file(dbfile),
+	  m_connection_handle(StormByte::Safe::Unique<ConnectionHandle>::MakePointer<ConnectionHandle>()) {
 	Telemetry(StormByte::Safe::Shared<StormByte::Database::Telemetry>::MakePointer<StormByte::Database::SQLite::Telemetry>());
 }
 
 SQLite3::SQLite3(SQLite3&& db) noexcept
 	: Database(std::move(db)), m_database_file(std::move(db.m_database_file)),
-	m_database(std::exchange(db.m_database, nullptr)) {
+	m_connection_handle(std::move(db.m_connection_handle)) {
 	db.m_connected = false;
 }
 
@@ -73,7 +75,7 @@ SQLite3& SQLite3::operator=(SQLite3&& db) noexcept {
 		Disconnect();
 		Database::operator=(std::move(db));
 		m_database_file = std::move(db.m_database_file);
-		m_database = std::exchange(db.m_database, nullptr);
+		m_connection_handle = std::move(db.m_connection_handle);
 		db.m_connected = false;
 	}
 
@@ -106,15 +108,15 @@ bool SQLite3::DoConnect() noexcept {
 		++g_sqlite_refcount;
 	}
 
-	if (sqlite3_open(static_cast<const char*>(m_database_file), &m_database) != SQLITE_OK) {
+	sqlite3* database = nullptr;
+	if (sqlite3_open(static_cast<const char*>(m_database_file), &database) != SQLITE_OK) {
 		if (m_logger) {
 			*m_logger << Logger::Level::Error << "sqlite3_open failed: "
-					<< (m_database ? sqlite3_errmsg(m_database) : "unknown") << std::endl;
+					<< (database ? sqlite3_errmsg(database) : "unknown") << std::endl;
 		}
 
-		if (m_database) {
-			sqlite3_close(m_database);
-			m_database = nullptr;
+		if (database) {
+			sqlite3_close(database);
 		}
 
 		std::lock_guard<std::mutex> lock(g_sqlite_init_mutex);
@@ -123,21 +125,22 @@ bool SQLite3::DoConnect() noexcept {
 		return false;
 	}
 
-	sqlite3_busy_timeout(m_database, 30000);
+	m_connection_handle->m_native_connection = database;
+	sqlite3_busy_timeout(database, 30000);
 	if (m_logger)
 		*m_logger << Logger::Level::LowLevel << "SQLite3::DoConnect leave (ok)" << std::endl;
 	return true;
 }
 
 void SQLite3::DoPreDisconnect() noexcept {
-	if (m_database)
+	if (m_connection_handle && m_connection_handle->m_native_connection)
 		ClearPreparedSTMTs();
 }
 
 void SQLite3::DoDisconnect() noexcept {
-	if (m_database) {
-		sqlite3_close(m_database);
-		m_database = nullptr;
+	if (m_connection_handle && m_connection_handle->m_native_connection) {
+		sqlite3_close(static_cast<sqlite3*>(m_connection_handle->m_native_connection));
+		m_connection_handle->m_native_connection = nullptr;
 	}
 }
 
@@ -151,9 +154,10 @@ void SQLite3::DoPostDisconnect() noexcept {
 
 StormByte::Database::ExpectedRows SQLite3::Query(std::string_view query) noexcept {
 	auto telemetry = TrackOperation(Operation::Query);
-	std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
+	OperationGuard lock{*this};
 	if (m_logger)
 		*m_logger << Logger::Level::Debug << "Executing query: " << query << std::endl;
+	auto* database = static_cast<sqlite3*>(m_connection_handle->m_native_connection);
 	if (!m_connected) {
 		RecordBackendEvent(BackendEvent::Connection);
 		telemetry.Complete(false);
@@ -169,11 +173,11 @@ StormByte::Database::ExpectedRows SQLite3::Query(std::string_view query) noexcep
 	}
 	sqlite3_stmt* stmt = nullptr;
 	const char* query_data = query.empty() ? "" : query.data();
-	int rc = sqlite3_prepare_v2(m_database, query_data, static_cast<int>(query.size()), &stmt, nullptr);
+	int rc = sqlite3_prepare_v2(database, query_data, static_cast<int>(query.size()), &stmt, nullptr);
 	if (rc != SQLITE_OK) {
 		if (auto* sqlite_telemetry = dynamic_cast<class Telemetry*>(m_telemetry.get()))
 			sqlite_telemetry->RecordSQLiteResult(rc);
-		const std::string errorStr = sqlite3_errmsg(m_database);
+		const std::string errorStr = sqlite3_errmsg(database);
 		if (stmt)
 			sqlite3_finalize(stmt);
 		telemetry.Complete(false);
@@ -183,7 +187,7 @@ StormByte::Database::ExpectedRows SQLite3::Query(std::string_view query) noexcep
 	ExpectedRows result = StepResults(stmt);
 	if (!result) {
 		if (auto* sqlite_telemetry = dynamic_cast<class Telemetry*>(m_telemetry.get()))
-			sqlite_telemetry->RecordSQLiteResult(sqlite3_errcode(m_database));
+			sqlite_telemetry->RecordSQLiteResult(sqlite3_errcode(database));
 	}
 	sqlite3_finalize(stmt);
 	telemetry.Complete(result.has_value(), result ? static_cast<std::uint64_t>(result->Count()) : 0);
@@ -192,16 +196,17 @@ StormByte::Database::ExpectedRows SQLite3::Query(std::string_view query) noexcep
 
 bool SQLite3::SilentQuery(std::string_view query) noexcept {
 	auto telemetry = TrackOperation(Operation::SilentQuery);
-	std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
+	OperationGuard lock{*this};
 	const bool result = DoSilentQuery(query);
 	telemetry.Complete(result);
 	return result;
 }
 
 bool SQLite3::DoSilentQuery(std::string_view query) noexcept {
-	std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
+	OperationGuard lock{*this};
 	if (m_logger)
 		*m_logger << Logger::Level::Debug << "Executing silent query: " << query << std::endl;
+	auto* database = static_cast<sqlite3*>(m_connection_handle->m_native_connection);
 	if (!m_connected) {
 		RecordBackendEvent(BackendEvent::Connection);
 		return false;
@@ -210,7 +215,7 @@ bool SQLite3::DoSilentQuery(std::string_view query) noexcept {
 		return false;
 	const std::string query_text{query};
 	char* errMsg = nullptr;
-	int rc = sqlite3_exec(m_database, query_text.c_str(), nullptr, nullptr, &errMsg);
+	int rc = sqlite3_exec(database, query_text.c_str(), nullptr, nullptr, &errMsg);
 	if (rc != SQLITE_OK) {
 		if (auto* sqlite_telemetry = dynamic_cast<class Telemetry*>(m_telemetry.get()))
 			sqlite_telemetry->RecordSQLiteResult(rc);
@@ -235,16 +240,19 @@ void SQLite3::EnableForeignKeys() {
 
 StormByte::Safe::Unique<StormByte::Database::PreparedSTMT>
 SQLite3::CreatePreparedSTMT(std::string_view name, std::string_view query) noexcept {
-	if (!m_connected || !m_database || query.find('\0') != std::string_view::npos)
+	auto* database = static_cast<sqlite3*>(m_connection_handle->m_native_connection);
+	if (!m_connected || !database || query.find('\0') != std::string_view::npos)
 		return nullptr;
 	StormByte::Safe::Unique<PreparedSTMT> stmt = StormByte::Safe::Unique<PreparedSTMT>::MakePointer<PreparedSTMT>(
 		PreparedSTMT::ConstructionKey{}, name, query, m_logger, m_telemetry);
 	if (stmt->Query().size() > static_cast<std::size_t>(std::numeric_limits<int>::max()))
 		return nullptr;
-	sqlite3_prepare_v2(m_database, stmt->Query().data(),
+	sqlite3_stmt* native_statement = nullptr;
+	sqlite3_prepare_v2(database, stmt->Query().data(),
 					static_cast<int>(stmt->Query().size()),
-					&(stmt->m_stmt), nullptr);
-	if (!stmt->m_stmt) {
+					&native_statement, nullptr);
+	stmt->m_statement_handle->m_native_statement = native_statement;
+	if (!native_statement) {
 		if (m_logger)
 			*m_logger << Logger::Level::Error << "Failed to prepare statement" << std::endl;
 		return nullptr;

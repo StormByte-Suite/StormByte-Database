@@ -3,6 +3,39 @@
  *
  * This file is part of StormByte-Database.
  *
+ * StormByte-Database original source is dual-licensed:
+ *
+ * 1. GNU Lesser General Public License v3.0 (or later)
+ *    You may redistribute and/or modify this file under the terms of the
+ *    GNU Lesser General Public License as published by the Free Software
+ *    Foundation, either version 3 of the License, or (at your option)
+ *    any later version.
+ *
+ * 2. Commercial license
+ *    Alternatively, this file may be used under the terms of a commercial
+ *    license agreement with the copyright holder
+ *    (David C. Manuelda <StormByte@gmail.com>).
+ *
+ * Both licenses apply only to original StormByte-Database source in this
+ * repository. They do not cover other StormByte modules or any third-party
+ * material shipped with this repository (including everything under
+ * thirdparty/, and in particular the bundled StormByte-Logger tree and
+ * the PostgreSQL, MariaDB and SQLite trees), which remain under their own
+ * licenses.
+ *
+ * Neither license grants any patent rights. Any patent licenses required
+ * to use this software or third-party components must be obtained separately
+ * from the patent holders.
+ *
+ * StormByte-Database is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * version 3 along with StormByte-Database. If not, see
+ * <https://www.gnu.org/licenses/lgpl-3.0.html>.
+ *
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
@@ -11,12 +44,9 @@
 #include <StormByte/database/database.hxx>
 #include <StormByte/database/mssql/telemetry.hxx>
 #include <StormByte/database/mssql/prepared_stmt.hxx>
+#include <StormByte/safe/vector.hxx>
 
-#include <string>
 #include <string_view>
-#include <vector>
-
-struct tds_dblib_dbprocess;
 
 /**
  * @namespace StormByte
@@ -33,6 +63,17 @@ namespace StormByte {
 		 * @brief Microsoft SQL Server backend using FreeTDS DB-Library.
 		 */
 		namespace MSSQL {
+			/**
+			 * @struct ConnectionHandle
+			 * @brief Private opaque holder for DB-Library connection state.
+			 */
+			struct ConnectionHandle;
+			/**
+			 * @struct CallbackHandlers
+			 * @brief Source-private adapter for native DB-Library callbacks.
+			 */
+			struct CallbackHandlers;
+
 			/**
 			 * @class MSSQL
 			 * @brief Microsoft SQL Server backend.
@@ -80,12 +121,13 @@ namespace StormByte {
 
 				private:
 					friend class PreparedSTMT;
+					friend struct CallbackHandlers;
 					StormByte::Safe::String m_host; ///< Base-owned SQL Server host.
 					StormByte::Safe::String m_user; ///< Base-owned SQL Server login.
 					StormByte::Safe::String m_password; ///< Base-owned SQL Server password.
 					StormByte::Safe::String m_database; ///< Base-owned initial database name.
 					int m_port; ///< SQL Server TCP port.
-					struct tds_dblib_dbprocess* m_connection; ///< FreeTDS DBPROCESS handle.
+					StormByte::Safe::Unique<ConnectionHandle> m_connection_handle; ///< Opaque owner for DB-Library state.
 					StormByte::Safe::String m_last_error; ///< Base-owned most recent DB-Library callback error.
 
 					/** @brief Open the DB-Library connection. @return Whether login succeeded. */
@@ -100,14 +142,8 @@ namespace StormByte {
 					/** @brief Begin a transaction at the requested isolation level. */
 					void DoBeginTransaction(IsolationLevel level) override;
 
-					/** @brief DB-Library error callback. */
-					static int ErrorHandler(struct tds_dblib_dbprocess* process, int severity, int database_error,
-						int operating_system_error, char* database_message, char* operating_system_message);
-					/** @brief DB-Library informational message callback. */
-					static int MessageHandler(struct tds_dblib_dbprocess* process, int message_number, int state,
-						int severity, char* text, char* server, char* procedure, int line);
 					/** @brief Execute SQL through sp_executesql with typed RPC parameters. */
-					ExpectedRows ExecuteParameterized(std::string_view query, const std::vector<Value>& parameters);
+					ExpectedRows ExecuteParameterized(std::string_view query, const StormByte::Safe::Vector<Value>& parameters);
 			};
 		}
 	}

@@ -3,6 +3,39 @@
  *
  * This file is part of StormByte-Database.
  *
+ * StormByte-Database original source is dual-licensed:
+ *
+ * 1. GNU Lesser General Public License v3.0 (or later)
+ *    You may redistribute and/or modify this file under the terms of the
+ *    GNU Lesser General Public License as published by the Free Software
+ *    Foundation, either version 3 of the License, or (at your option)
+ *    any later version.
+ *
+ * 2. Commercial license
+ *    Alternatively, this file may be used under the terms of a commercial
+ *    license agreement with the copyright holder
+ *    (David C. Manuelda <StormByte@gmail.com>).
+ *
+ * Both licenses apply only to original StormByte-Database source in this
+ * repository. They do not cover other StormByte modules or any third-party
+ * material shipped with this repository (including everything under
+ * thirdparty/, and in particular the bundled StormByte-Logger tree and
+ * the PostgreSQL, MariaDB and SQLite trees), which remain under their own
+ * licenses.
+ *
+ * Neither license grants any patent rights. Any patent licenses required
+ * to use this software or third-party components must be obtained separately
+ * from the patent holders.
+ *
+ * StormByte-Database is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * version 3 along with StormByte-Database. If not, see
+ * <https://www.gnu.org/licenses/lgpl-3.0.html>.
+ *
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
@@ -10,6 +43,7 @@
 #include <StormByte/database/mssql/result_fetch.hxx>
 #include <StormByte/database/mssql/prepared_stmt.hxx>
 #include <StormByte/database/value.hxx>
+#include <StormByte/database/engine_handles.hxx>
 
 #include <sybdb.h>
 
@@ -53,7 +87,7 @@ namespace {
 		int type{SYBVARCHAR};
 		DBINT length{};
 		std::string text;
-		StormByte::BinaryData binary;
+		StormByte::Safe::Binary binary;
 		DBINT int32_value{};
 		DBBIGINT int64_value{};
 		DBFLT8 float_value{};
@@ -88,7 +122,7 @@ namespace {
 		return "sql_variant";
 	}
 
-	bool TranslatePlaceholders(const std::string_view query, const std::vector<Value>& parameters,
+	bool TranslatePlaceholders(const std::string_view query, const StormByte::Safe::Vector<Value>& parameters,
 			std::string& translated, std::string& declarations) {
 		enum class State { Normal, SingleQuote, DoubleQuote, Bracket, LineComment, BlockComment };
 		State state = State::Normal;
@@ -156,20 +190,52 @@ namespace {
 	}
 }
 
+namespace StormByte::Database::MSSQL {
+	struct CallbackHandlers {
+		static int Error(DBPROCESS* const process, const int severity, const int database_error,
+			const int operating_system_error, char* database_message, char* operating_system_message) {
+			(void)severity;
+			(void)operating_system_error;
+		auto* self = process ? reinterpret_cast<MSSQL*>(dbgetuserdata(process)) : nullptr;
+			if (self && !(database_error == SYBESMSG && !self->m_last_error.empty()))
+				self->m_last_error = ErrorText(database_message, operating_system_message ? operating_system_message : "");
+			return INT_CANCEL;
+		}
+
+		static int Message(DBPROCESS* const process, const int message_number, const int state,
+			const int severity, char* text, char* server, char* procedure, const int line) {
+			(void)message_number;
+			(void)state;
+			(void)server;
+			(void)procedure;
+			(void)line;
+			if (severity <= 10)
+				return INT_CONTINUE;
+			auto* self = process ? reinterpret_cast<MSSQL*>(dbgetuserdata(process)) : nullptr;
+			if (self) {
+				self->m_last_error = ErrorText(text, "SQL Server reported an error");
+				static_cast<StormByte::Database::MSSQL::Telemetry*>(self->Telemetry().get())->RecordError();
+			}
+			return INT_CANCEL;
+		}
+	};
+}
+
 MSSQL::MSSQL(std::string_view host, std::string_view user, std::string_view password,
 		std::string_view database, const int port, const StormByte::Safe::Shared<Logger::Log>& logger):
 	Database(logger), m_host(host), m_user(user), m_password(password), m_database(database),
-	m_port(port), m_connection(nullptr) {
+	m_port(port), m_connection_handle(StormByte::Safe::Unique<ConnectionHandle>::MakePointer<ConnectionHandle>()) {
 	Telemetry(StormByte::Safe::Shared<StormByte::Database::Telemetry>::MakePointer<class Telemetry>());
 }
 
 MSSQL::MSSQL(MSSQL&& other) noexcept:
 	Database(std::move(other)), m_host(std::move(other.m_host)), m_user(std::move(other.m_user)),
 	m_password(std::move(other.m_password)), m_database(std::move(other.m_database)),
-	m_port(other.m_port), m_connection(std::exchange(other.m_connection, nullptr)),
+	m_port(other.m_port), m_connection_handle(std::move(other.m_connection_handle)),
 	m_last_error(std::move(other.m_last_error)) {
-	if (m_connection)
-		dbsetuserdata(m_connection, reinterpret_cast<BYTE*>(this));
+	DBPROCESS* process = m_connection_handle ? static_cast<DBPROCESS*>(m_connection_handle->m_native_connection) : nullptr;
+	if (process)
+		dbsetuserdata(process, reinterpret_cast<BYTE*>(this));
 	other.m_connected = false;
 }
 
@@ -182,10 +248,11 @@ MSSQL& MSSQL::operator=(MSSQL&& other) noexcept {
 		m_password = std::move(other.m_password);
 		m_database = std::move(other.m_database);
 		m_port = other.m_port;
-		m_connection = std::exchange(other.m_connection, nullptr);
+		m_connection_handle = std::move(other.m_connection_handle);
 		m_last_error = std::move(other.m_last_error);
-		if (m_connection)
-			dbsetuserdata(m_connection, reinterpret_cast<BYTE*>(this));
+		DBPROCESS* process = m_connection_handle ? static_cast<DBPROCESS*>(m_connection_handle->m_native_connection) : nullptr;
+		if (process)
+			dbsetuserdata(process, reinterpret_cast<BYTE*>(this));
 		other.m_connected = false;
 	}
 	return *this;
@@ -193,34 +260,6 @@ MSSQL& MSSQL::operator=(MSSQL&& other) noexcept {
 
 MSSQL::~MSSQL() noexcept {
 	Disconnect();
-}
-
-int MSSQL::ErrorHandler(DBPROCESS* const process, const int severity, const int database_error,
-		const int operating_system_error, char* database_message, char* operating_system_message) {
-	(void)severity;
-	(void)operating_system_error;
-	auto* self = process ? reinterpret_cast<MSSQL*>(dbgetuserdata(process)) : nullptr;
-	// Keep the server message instead of DB-Library's generic "check messages" notice.
-	if (self && !(database_error == SYBESMSG && !self->m_last_error.empty()))
-		self->m_last_error = ErrorText(database_message, operating_system_message ? operating_system_message : "");
-	return INT_CANCEL;
-}
-
-int MSSQL::MessageHandler(DBPROCESS* const process, const int message_number, const int state,
-		const int severity, char* text, char* server, char* procedure, const int line) {
-	(void)message_number;
-	(void)state;
-	(void)server;
-	(void)procedure;
-	(void)line;
-	if (severity <= 10)
-		return INT_CONTINUE;
-	auto* self = process ? reinterpret_cast<MSSQL*>(dbgetuserdata(process)) : nullptr;
-	if (self) {
-		self->m_last_error = ErrorText(text, "SQL Server reported an error");
-		static_cast<StormByte::Database::MSSQL::Telemetry*>(self->Telemetry().get())->RecordError();
-	}
-	return INT_CANCEL;
 }
 
 bool MSSQL::DoConnect() noexcept {
@@ -234,13 +273,13 @@ bool MSSQL::DoConnect() noexcept {
 	try {
 		std::call_once(db_library_once, [] {
 			dbinit();
-			dberrhandle(&MSSQL::ErrorHandler);
-			dbmsghandle(&MSSQL::MessageHandler);
+			dberrhandle(&CallbackHandlers::Error);
+			dbmsghandle(&CallbackHandlers::Message);
 		});
 		m_last_error.clear();
 		LOGINREC* login = dblogin();
 		if (!login) {
-			m_last_error = "DB-Library could not allocate a login record";
+			m_last_error = std::string_view{"DB-Library could not allocate a login record"};
 			return false;
 		}
 
@@ -263,13 +302,13 @@ bool MSSQL::DoConnect() noexcept {
 			configured = dbsetlname(login, encryption, DBSETENCRYPTION) != FAIL;
 	#else
 		if (encryption) {
-			m_last_error = "This DB-Library does not support per-connection TLS modes";
+			m_last_error = std::string_view{"This DB-Library does not support per-connection TLS modes"};
 			dbloginfree(login);
 			return false;
 		}
 	#endif
 		if (!configured) {
-			m_last_error = "DB-Library rejected an MSSQL connection option";
+			m_last_error = std::string_view{"DB-Library rejected an MSSQL connection option"};
 			dbloginfree(login);
 			return false;
 		}
@@ -288,7 +327,7 @@ bool MSSQL::DoConnect() noexcept {
 			return false;
 		}
 		if (dbsetopt(process, DBTEXTSIZE, "2147483647", -1) == FAIL) {
-			m_last_error = "DB-Library could not configure the MSSQL text size";
+			m_last_error = std::string_view{"DB-Library could not configure the MSSQL text size"};
 			dbclose(process);
 			return false;
 		}
@@ -302,15 +341,15 @@ bool MSSQL::DoConnect() noexcept {
 			session_configured = result_status != FAIL && dbcanquery(process) != FAIL;
 		}
 		if (!session_configured) {
-			m_last_error = "DB-Library could not configure the MSSQL session options";
+			m_last_error = std::string_view{"DB-Library could not configure the MSSQL session options"};
 			dbclose(process);
 			return false;
 		}
-		m_connection = process;
+		m_connection_handle->m_native_connection = process;
 		dbsetuserdata(process, reinterpret_cast<BYTE*>(this));
 		return true;
 	} catch (...) {
-		m_last_error = "Unknown exception while connecting to SQL Server";
+		m_last_error = std::string_view{"Unknown exception while connecting to SQL Server"};
 		return false;
 	}
 }
@@ -320,17 +359,19 @@ void MSSQL::DoPreDisconnect() noexcept {
 }
 
 void MSSQL::DoDisconnect() noexcept {
-	if (m_connection) {
-		dbsetuserdata(m_connection, nullptr);
-		dbclose(m_connection);
-		m_connection = nullptr;
+	DBPROCESS* process = static_cast<DBPROCESS*>(m_connection_handle->m_native_connection);
+	if (process) {
+		dbsetuserdata(process, nullptr);
+		dbclose(process);
+		m_connection_handle->m_native_connection = nullptr;
 	}
 }
 
 StormByte::Database::ExpectedRows MSSQL::Query(const std::string_view query) noexcept {
 	auto telemetry = TrackOperation(Operation::Query);
-	std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
-	if (!m_connected || !m_connection) {
+	OperationGuard lock{*this};
+	DBPROCESS* process = static_cast<DBPROCESS*>(m_connection_handle->m_native_connection);
+	if (!m_connected || !process) {
 		RecordBackendEvent(BackendEvent::Connection);
 		telemetry.Complete(false);
 		return StormByte::Unexpected<QueryException>(ExecuteError("Database not connected"));
@@ -342,12 +383,12 @@ StormByte::Database::ExpectedRows MSSQL::Query(const std::string_view query) noe
 	try {
 		const std::string sql{query};
 		m_last_error.clear();
-		if (dbcmd(m_connection, sql.c_str()) == FAIL || dbsqlexec(m_connection) == FAIL) {
+		if (dbcmd(process, sql.c_str()) == FAIL || dbsqlexec(process) == FAIL) {
 			RecordBackendEvent(BackendEvent::Other);
 			telemetry.Complete(false);
 			return StormByte::Unexpected<QueryException>(ExecuteError(ErrorText(nullptr, m_last_error)));
 		}
-		auto rows = StepResults(m_connection);
+		auto rows = StepResults(process);
 		telemetry.Complete(rows.has_value(), rows ? static_cast<std::uint64_t>(rows->Count()) : 0);
 		return rows;
 	} catch (const StormByte::Exception& error) {
@@ -361,29 +402,30 @@ StormByte::Database::ExpectedRows MSSQL::Query(const std::string_view query) noe
 
 bool MSSQL::SilentQuery(const std::string_view query) noexcept {
 	auto telemetry = TrackOperation(Operation::SilentQuery);
-	std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
+	OperationGuard lock{*this};
 	const bool result = DoSilentQuery(query);
 	telemetry.Complete(result);
 	return result;
 }
 
 bool MSSQL::DoSilentQuery(const std::string_view query) noexcept {
-	std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
-	if (!m_connected || !m_connection || query.find('\0') != std::string_view::npos)
+	OperationGuard lock{*this};
+	DBPROCESS* process = static_cast<DBPROCESS*>(m_connection_handle->m_native_connection);
+	if (!m_connected || !process || query.find('\0') != std::string_view::npos)
 		return false;
 	try {
 		const std::string sql{query};
 		m_last_error.clear();
-		if (dbcmd(m_connection, sql.c_str()) == FAIL || dbsqlexec(m_connection) == FAIL)
+		if (dbcmd(process, sql.c_str()) == FAIL || dbsqlexec(process) == FAIL)
 			return false;
 		for (;;) {
-			const RETCODE result_status = dbresults(m_connection);
+			const RETCODE result_status = dbresults(process);
 			if (result_status == NO_MORE_RESULTS)
 				break;
 			if (result_status == FAIL)
 				return false;
 			for (;;) {
-				const STATUS row_status = dbnextrow(m_connection);
+				const STATUS row_status = dbnextrow(process);
 				if (row_status == NO_MORE_ROWS)
 					break;
 				if (row_status == FAIL)
@@ -401,8 +443,10 @@ StormByte::Safe::Unique<StormByte::Database::PreparedSTMT> MSSQL::CreatePrepared
 	if (query.find('\0') != std::string_view::npos || name.find('\0') != std::string_view::npos)
 		return nullptr;
 	try {
-		return StormByte::Safe::Unique<StormByte::Database::PreparedSTMT>::MakePointer<PreparedSTMT>(
-			PreparedSTMT::ConstructionKey{}, name, query, m_connection, m_logger, m_telemetry);
+		auto statement = StormByte::Safe::Unique<PreparedSTMT>::MakePointer<PreparedSTMT>(
+			PreparedSTMT::ConstructionKey{}, name, query, m_logger, m_telemetry);
+		statement->m_statement_handle->m_native_connection = m_connection_handle->m_native_connection;
+		return statement;
 	} catch (...) {
 		return nullptr;
 	}
@@ -424,8 +468,9 @@ void MSSQL::DoBeginTransaction(const IsolationLevel level) {
 }
 
 StormByte::Database::ExpectedRows MSSQL::ExecuteParameterized(const std::string_view query,
-		const std::vector<Value>& parameters) {
-	if (!m_connected || !m_connection)
+		const StormByte::Safe::Vector<Value>& parameters) {
+	DBPROCESS* process = static_cast<DBPROCESS*>(m_connection_handle->m_native_connection);
+	if (!m_connected || !process)
 		return StormByte::Unexpected<QueryException>(ExecuteError("Database not connected"));
 	std::string translated_query;
 	std::string declarations;
@@ -490,7 +535,7 @@ StormByte::Database::ExpectedRows MSSQL::ExecuteParameterized(const std::string_
 			}
 			case Value::Type::Blob:
 				parameter.type = SYBIMAGE;
-				parameter.binary = value.Get<StormByte::BinaryData>();
+				parameter.binary = value.Get<StormByte::Safe::Binary>();
 				parameter.has_empty_marker = true;
 				parameter.empty_value = parameter.binary.empty();
 				if (!FitsRpcLength(parameter.binary.size()))
@@ -503,10 +548,10 @@ StormByte::Database::ExpectedRows MSSQL::ExecuteParameterized(const std::string_
 		}
 	}
 
-	if (dbrpcinit(m_connection, "sp_executesql", DBRPCNORETURN) == FAIL)
+	if (dbrpcinit(process, "sp_executesql", DBRPCNORETURN) == FAIL)
 		return StormByte::Unexpected<QueryException>(ExecuteError(ErrorText(nullptr, m_last_error)));
-	auto add_rpc_parameter = [this](const char* name, const int type, const DBINT length, BYTE* data) {
-		return dbrpcparam(m_connection, name, 0, type, -1, length, data) != FAIL;
+	auto add_rpc_parameter = [process](const char* name, const int type, const DBINT length, BYTE* data) {
+		return dbrpcparam(process, name, 0, type, -1, length, data) != FAIL;
 	};
 	if (!add_rpc_parameter(nullptr, SYBVARCHAR, static_cast<DBINT>(translated_query.size()),
 			reinterpret_cast<BYTE*>(translated_query.data())))
@@ -527,9 +572,9 @@ StormByte::Database::ExpectedRows MSSQL::ExecuteParameterized(const std::string_
 				return StormByte::Unexpected<QueryException>(ExecuteError(ErrorText(nullptr, m_last_error)));
 		}
 	}
-	if (dbrpcsend(m_connection) == FAIL || dbsqlok(m_connection) == FAIL) {
+	if (dbrpcsend(process) == FAIL || dbsqlok(process) == FAIL) {
 		RecordBackendEvent(BackendEvent::Other);
 		return StormByte::Unexpected<QueryException>(ExecuteError(ErrorText(nullptr, m_last_error)));
 	}
-	return StepResults(m_connection);
+	return StepResults(process);
 }

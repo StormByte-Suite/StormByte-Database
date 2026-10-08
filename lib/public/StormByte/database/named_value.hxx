@@ -63,6 +63,11 @@ namespace StormByte {
 		class STORMBYTE_DATABASE_PUBLIC NamedValue : public Value {
 			public:
 				/**
+				 * @brief Construct an unnamed SQL NULL column value.
+				 */
+				NamedValue();
+
+				/**
 				 * @brief Copy name and value.
 				 * @param name Column name.
 				 * @param value Value.

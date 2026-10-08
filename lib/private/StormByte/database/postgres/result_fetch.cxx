@@ -116,7 +116,7 @@ StormByte::Database::ExpectedRows StormByte::Database::Postgres::StepResults(PGr
 					unsigned char* unescaped = nullptr;
 					std::size_t unescaped_length = 0;
 					unescaped = PQunescapeBytea(reinterpret_cast<const unsigned char*>(value), &unescaped_length);
-					StormByte::BinaryData blob{
+					StormByte::Safe::Binary blob{
 						reinterpret_cast<const std::byte*>(unescaped),
 						StormByte::ByteSize{unescaped_length}
 					};

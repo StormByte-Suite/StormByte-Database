@@ -42,18 +42,13 @@
 #include <StormByte/database/rows.hxx>
 
 #include <algorithm>
-#include <vector>
 
 using namespace StormByte::Database;
-
-struct Rows::ResultSet {
-	std::vector<Row> values;
-};
 
 Rows::Rows() noexcept = default;
 
 Rows::Rows(const Rows& other):
-	m_results(other.m_results ? std::make_unique<ResultSet>(*other.m_results) : nullptr) {}
+	m_results(other.m_results) {}
 
 Rows::Rows(Rows&& other) noexcept = default;
 
@@ -61,16 +56,14 @@ Rows::~Rows() noexcept = default;
 
 Rows& Rows::operator=(const Rows& other) {
 	if (this != &other)
-		m_results = other.m_results ? std::make_unique<ResultSet>(*other.m_results) : nullptr;
+		m_results = other.m_results;
 	return *this;
 }
 
 Rows& Rows::operator=(Rows&& other) noexcept = default;
 
 bool Rows::operator==(const Rows& other) const {
-	if (!m_results || !other.m_results)
-		return empty() && other.empty();
-	return m_results->values == other.m_results->values;
+	return m_results == other.m_results;
 }
 
 bool Rows::operator!=(const Rows& other) const {
@@ -78,19 +71,19 @@ bool Rows::operator!=(const Rows& other) const {
 }
 
 Rows::iterator Rows::begin() noexcept {
-	return m_results && !m_results->values.empty() ? m_results->values.data() : nullptr;
+	return m_results.empty() ? nullptr : m_results.data();
 }
 
 Rows::const_iterator Rows::begin() const noexcept {
-	return m_results && !m_results->values.empty() ? m_results->values.data() : nullptr;
+	return m_results.empty() ? nullptr : m_results.data();
 }
 
 Rows::iterator Rows::end() noexcept {
-	return m_results && !m_results->values.empty() ? m_results->values.data() + m_results->values.size() : nullptr;
+	return m_results.empty() ? nullptr : m_results.data() + static_cast<std::size_t>(m_results.size());
 }
 
 Rows::const_iterator Rows::end() const noexcept {
-	return m_results && !m_results->values.empty() ? m_results->values.data() + m_results->values.size() : nullptr;
+	return m_results.empty() ? nullptr : m_results.data() + static_cast<std::size_t>(m_results.size());
 }
 
 Rows::const_iterator Rows::cbegin() const noexcept {
@@ -126,39 +119,35 @@ Rows::const_reverse_iterator Rows::crend() const noexcept {
 }
 
 StormByte::Size Rows::size() const noexcept {
-	return StormByte::Size{m_results ? m_results->values.size() : 0};
+	return StormByte::Size{m_results.size()};
 }
 
 bool Rows::empty() const noexcept {
-	return !m_results || m_results->values.empty();
+	return m_results.empty();
 }
 
 Row& Rows::operator[](StormByte::Size index) {
 	if (index >= size())
 		throw OutOfBounds(index, size());
-	return m_results->values[static_cast<std::size_t>(index)];
+	return m_results[static_cast<std::size_t>(index)];
 }
 
 const Row& Rows::operator[](StormByte::Size index) const {
 	if (index >= size())
 		throw OutOfBounds(index, size());
-	return m_results->values[static_cast<std::size_t>(index)];
+	return m_results[static_cast<std::size_t>(index)];
 }
 
 void Rows::add(const Row& row) {
-	if (!m_results)
-		m_results = std::make_unique<ResultSet>();
-	m_results->values.emplace_back(row);
+	m_results.emplace_back(row);
 }
 
 void Rows::add(Row&& row) {
-	if (!m_results)
-		m_results = std::make_unique<ResultSet>();
-	m_results->values.emplace_back(std::move(row));
+	m_results.emplace_back(std::move(row));
 }
 
 bool Rows::has_item(const Row& row) const {
-	return m_results && std::find(m_results->values.begin(), m_results->values.end(), row) != m_results->values.end();
+	return std::find(m_results.begin(), m_results.end(), row) != m_results.end();
 }
 
 StormByte::Size Rows::Count() const noexcept {

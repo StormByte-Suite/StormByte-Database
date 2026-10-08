@@ -42,11 +42,13 @@
 #pragma once
 
 #include <StormByte/database/named_value.hxx>
+#include <StormByte/safe/map.hxx>
+#include <StormByte/safe/optional.hxx>
+#include <StormByte/safe/vector.hxx>
 #include <StormByte/size.hxx>
 #include <StormByte/type_traits.hxx>
 
 #include <iterator>
-#include <memory>
 #include <string_view>
 #include <utility>
 
@@ -74,8 +76,8 @@ namespace StormByte {
 				using const_pointer = const NamedValue*;                                ///< Read-only column pointer.
 				using iterator = pointer;                                               ///< Mutable pointer iterator.
 				using const_iterator = const_pointer;                                   ///< Read-only pointer iterator.
-				using reverse_iterator = std::reverse_iterator<iterator>;               ///< Mutable reverse iterator.
-				using const_reverse_iterator = std::reverse_iterator<const_iterator>;   ///< Read-only reverse iterator.
+				using reverse_iterator = StormByte::Safe::Vector<NamedValue>::reverse_iterator; ///< Mutable reverse iterator.
+				using const_reverse_iterator = StormByte::Safe::Vector<NamedValue>::const_reverse_iterator; ///< Read-only reverse iterator.
 
 				/**
 				 * @brief Default constructor.
@@ -316,13 +318,8 @@ namespace StormByte {
 				StormByte::Size Count() const noexcept;
 
 			private:
-				/**
-				 * @class Columns
-				 * @brief Private row storage and column-name index.
-				 */
-				struct Columns;
-
-				std::unique_ptr<Columns> m_columns;	///< Opaque storage owned by the Database DLL
+				StormByte::Safe::Vector<NamedValue> m_columns; ///< Ordered Base-owned column values.
+				mutable StormByte::Safe::Optional<StormByte::Safe::Map<StormByte::Safe::String, StormByte::Size>> m_name_index; ///< Lazy first-column name index.
 
 				/**
 				 * @brief Build the name index if missing.

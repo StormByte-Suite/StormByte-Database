@@ -33,3 +33,11 @@ if (NOT WITH_MARIADB STREQUAL "OFF")
 		PATTERN "*.hxx"
 	)
 endif()
+if (NOT WITH_MSSQL STREQUAL "OFF")
+	install(DIRECTORY "${CMAKE_SOURCE_DIR}/lib/optional/StormByte/database/mssql"
+		DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/StormByte/database"
+		FILES_MATCHING
+		PATTERN "*.h"
+		PATTERN "*.hxx"
+	)
+endif()

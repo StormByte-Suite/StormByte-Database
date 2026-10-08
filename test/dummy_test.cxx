@@ -72,201 +72,127 @@ class TestTelemetry : public Telemetry {
 
 int test_component_prefixed_exceptions() {
 	int result = 0;
-	ASSERT_EQUAL("test_component_prefixed_exceptions", std::string("StormByte.Database: generic error"), std::string(Exception("generic error").what()));
-	ASSERT_EQUAL("test_component_prefixed_exceptions", std::string("StormByte.Database.Connection: connection failed"), std::string(ConnectionError("connection failed").what()));
-	ASSERT_EQUAL("test_component_prefixed_exceptions", std::string("StormByte.Database.WrongValueType.Value: expected integer"), std::string(WrongValueType("Value", "expected {}", "integer").what()));
-	ASSERT_EQUAL("test_component_prefixed_exceptions", std::string("StormByte.Database.ColumnNotFound: Column 'id' not found"), std::string(ColumnNotFound("id").what()));
-	ASSERT_EQUAL("test_component_prefixed_exceptions", std::string("StormByte.Database.OutOfBounds: Position 3 is out of bounds for size 2"), std::string(OutOfBounds(3, 2).what()));
-	ASSERT_EQUAL("test_component_prefixed_exceptions", std::string("StormByte.Database.Query.PreparedSTMT: Statement 'users' not found"), std::string(UnknownSTMT("users").what()));
-	ASSERT_EQUAL("test_component_prefixed_exceptions", std::string("StormByte.Database.Query.Execute: Error executing query: syntax error"), std::string(ExecuteError("syntax error").what()));
-	ASSERT_EQUAL("test_component_prefixed_exceptions", std::string("StormByte.Database.Transaction: Unable to begin transaction: disconnected"), std::string(TransactionError("disconnected").what()));
-	RETURN_TEST("test_component_prefixed_exceptions", result);
+	ASSERT_EQUAL(std::string("StormByte.Database: generic error"), std::string(Exception("generic error").what()));
+	ASSERT_EQUAL(std::string("StormByte.Database.Connection: connection failed"), std::string(ConnectionError("connection failed").what()));
+	ASSERT_EQUAL(std::string("StormByte.Database.WrongValueType.Value: expected integer"), std::string(WrongValueType("Value", "expected {}", "integer").what()));
+	ASSERT_EQUAL(std::string("StormByte.Database.ColumnNotFound: Column 'id' not found"), std::string(ColumnNotFound("id").what()));
+	ASSERT_EQUAL(std::string("StormByte.Database.OutOfBounds: Position 3 is out of bounds for size 2"), std::string(OutOfBounds(3, 2).what()));
+	ASSERT_EQUAL(std::string("StormByte.Database.Query.PreparedSTMT: Statement 'users' not found"), std::string(UnknownSTMT("users").what()));
+	ASSERT_EQUAL(std::string("StormByte.Database.Query.Execute: Error executing query: syntax error"), std::string(ExecuteError("syntax error").what()));
+	ASSERT_EQUAL(std::string("StormByte.Database.Transaction: Unable to begin transaction: disconnected"), std::string(TransactionError("disconnected").what()));
+	RETURN_TEST(result);
 }
 
 int test_invalid_value_conversions_throw() {
-	int result = 0;
-	bool threw = false;
-	try {
-		(void)Value().Get<int>();
-	} catch (const WrongValueType&) {
-		threw = true;
-	}
-
-	ASSERT_TRUE("test_invalid_value_conversions_throw", threw);
-
-	threw = false;
-	try {
-		(void)Value("text").Get<int>();
-	} catch (const WrongValueType&) {
-		threw = true;
-	}
-
-	ASSERT_TRUE("test_invalid_value_conversions_throw", threw);
-
-	threw = false;
-	try {
-		(void)Value(-1).Get<unsigned int>();
-	} catch (const WrongValueType&) {
-		threw = true;
-	}
-
-	ASSERT_TRUE("test_invalid_value_conversions_throw", threw);
-
-	threw = false;
-	try {
-		(void)Value(std::numeric_limits<unsigned long int>::max()).Get<int>();
-	} catch (const WrongValueType&) {
-		threw = true;
-	}
-
-	ASSERT_TRUE("test_invalid_value_conversions_throw", threw);
-
-	threw = false;
-	try {
-		(void)Value(1.5).Get<int>();
-	} catch (const WrongValueType&) {
-		threw = true;
-	}
-
-	ASSERT_TRUE("test_invalid_value_conversions_throw", threw);
-
-	threw = false;
-	try {
-		(void)Value(std::numeric_limits<double>::max()).Get<long long int>();
-	} catch (const WrongValueType&) {
-		threw = true;
-	}
-
-	ASSERT_TRUE("test_invalid_value_conversions_throw", threw);
-
-	threw = false;
-	try {
-		(void)Value(-std::numeric_limits<double>::max()).Get<unsigned long long int>();
-	} catch (const WrongValueType&) {
-		threw = true;
-	}
-
-	ASSERT_TRUE("test_invalid_value_conversions_throw", threw);
-
-	threw = false;
-	try {
-		(void)Value(std::numeric_limits<double>::infinity()).Get<int>();
-	} catch (const WrongValueType&) {
-		threw = true;
-	}
-
-	ASSERT_TRUE("test_invalid_value_conversions_throw", threw);
-
-	threw = false;
-	try {
-		(void)Value(std::numeric_limits<double>::quiet_NaN()).Get<int>();
-	} catch (const WrongValueType&) {
-		threw = true;
-	}
-
-	ASSERT_TRUE("test_invalid_value_conversions_throw", threw);
-	RETURN_TEST("test_invalid_value_conversions_throw", result);
+	ASSERT_THROWS(Value().Get<int>(), WrongValueType);
+	ASSERT_THROWS(Value("text").Get<int>(), WrongValueType);
+	ASSERT_THROWS(Value(-1).Get<unsigned int>(), WrongValueType);
+	ASSERT_THROWS(Value(std::numeric_limits<unsigned long int>::max()).Get<int>(), WrongValueType);
+	ASSERT_THROWS(Value(1.5).Get<int>(), WrongValueType);
+	ASSERT_THROWS(Value(std::numeric_limits<double>::max()).Get<long long int>(), WrongValueType);
+	ASSERT_THROWS(Value(-std::numeric_limits<double>::max()).Get<unsigned long long int>(), WrongValueType);
+	ASSERT_THROWS(Value(std::numeric_limits<double>::infinity()).Get<int>(), WrongValueType);
+	ASSERT_THROWS(Value(std::numeric_limits<double>::quiet_NaN()).Get<int>(), WrongValueType);
+	RETURN_TEST(0);
 }
 
 int test_value_variants_and_numeric_boundaries() {
-	constexpr std::string_view fn_name = "test_value_variants_and_numeric_boundaries";
-	ASSERT_EQUAL(fn_name, Value::Type::Null, Value().Type());
-	ASSERT_EQUAL(fn_name, Value::Type::Integer, Value(std::numeric_limits<int>::min()).Type());
-	ASSERT_EQUAL(fn_name, Value::Type::UnsignedInteger, Value(std::numeric_limits<unsigned int>::max()).Type());
-	ASSERT_EQUAL(fn_name, Value::Type::LongInteger, Value(std::numeric_limits<long int>::min()).Type());
-	ASSERT_EQUAL(fn_name, Value::Type::UnsignedLongInteger, Value(std::numeric_limits<unsigned long int>::max()).Type());
-	ASSERT_EQUAL(fn_name, Value::Type::LongInteger, Value(std::numeric_limits<long long int>::min()).Type());
-	ASSERT_EQUAL(fn_name, Value::Type::UnsignedLongInteger, Value(std::numeric_limits<unsigned long long int>::max()).Type());
-	ASSERT_EQUAL(fn_name, Value::Type::Double, Value(std::numeric_limits<double>::lowest()).Type());
-	ASSERT_EQUAL(fn_name, Value::Type::Text, Value(std::string_view{}).Type());
-	ASSERT_EQUAL(fn_name, Value::Type::Blob, Value(StormByte::BinaryData{}).Type());
-	ASSERT_EQUAL(fn_name, Value::Type::Boolean, Value(true).Type());
-	ASSERT_EQUAL(fn_name, std::numeric_limits<int>::min(), Value(std::numeric_limits<int>::min()).Get<int>());
-	ASSERT_EQUAL(fn_name, std::numeric_limits<unsigned int>::max(), Value(std::numeric_limits<unsigned int>::max()).Get<unsigned int>());
-	ASSERT_EQUAL(fn_name, static_cast<long long int>(std::numeric_limits<long int>::min()), Value(std::numeric_limits<long int>::min()).Get<long long int>());
-	ASSERT_EQUAL(fn_name, static_cast<unsigned long long int>(std::numeric_limits<unsigned long int>::max()), Value(std::numeric_limits<unsigned long int>::max()).Get<unsigned long long int>());
-	ASSERT_EQUAL(fn_name, std::numeric_limits<long long int>::min(), Value(std::numeric_limits<long long int>::min()).Get<long long int>());
-	ASSERT_EQUAL(fn_name, std::numeric_limits<unsigned long long int>::max(), Value(std::numeric_limits<unsigned long long int>::max()).Get<unsigned long long int>());
-	ASSERT_EQUAL(fn_name, std::numeric_limits<int>::max(), Value(static_cast<double>(std::numeric_limits<int>::max())).Get<int>());
-	ASSERT_EQUAL(fn_name, std::numeric_limits<long long int>::min(), Value(-std::ldexp(1.0, std::numeric_limits<long long int>::digits)).Get<long long int>());
-	ASSERT_EQUAL(fn_name, true, Value(1).Get<bool>());
-	ASSERT_EQUAL(fn_name, 0, Value(false).Get<int>());
-	ASSERT_EQUAL(fn_name, false, Value(0.0).Get<bool>());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_EQUAL(Value::Type::Null, Value().Type());
+	ASSERT_EQUAL(Value::Type::Integer, Value(std::numeric_limits<int>::min()).Type());
+	ASSERT_EQUAL(Value::Type::UnsignedInteger, Value(std::numeric_limits<unsigned int>::max()).Type());
+	ASSERT_EQUAL(Value::Type::LongInteger, Value(std::numeric_limits<long int>::min()).Type());
+	ASSERT_EQUAL(Value::Type::UnsignedLongInteger, Value(std::numeric_limits<unsigned long int>::max()).Type());
+	ASSERT_EQUAL(Value::Type::LongInteger, Value(std::numeric_limits<long long int>::min()).Type());
+	ASSERT_EQUAL(Value::Type::UnsignedLongInteger, Value(std::numeric_limits<unsigned long long int>::max()).Type());
+	ASSERT_EQUAL(Value::Type::Double, Value(std::numeric_limits<double>::lowest()).Type());
+	ASSERT_EQUAL(Value::Type::Text, Value(std::string_view{}).Type());
+	ASSERT_EQUAL(Value::Type::Blob, Value(StormByte::Safe::Binary{}).Type());
+	ASSERT_EQUAL(Value::Type::Boolean, Value(true).Type());
+	ASSERT_EQUAL(std::numeric_limits<int>::min(), Value(std::numeric_limits<int>::min()).Get<int>());
+	ASSERT_EQUAL(std::numeric_limits<unsigned int>::max(), Value(std::numeric_limits<unsigned int>::max()).Get<unsigned int>());
+	ASSERT_EQUAL(static_cast<long long int>(std::numeric_limits<long int>::min()), Value(std::numeric_limits<long int>::min()).Get<long long int>());
+	ASSERT_EQUAL(static_cast<unsigned long long int>(std::numeric_limits<unsigned long int>::max()), Value(std::numeric_limits<unsigned long int>::max()).Get<unsigned long long int>());
+	ASSERT_EQUAL(std::numeric_limits<long long int>::min(), Value(std::numeric_limits<long long int>::min()).Get<long long int>());
+	ASSERT_EQUAL(std::numeric_limits<unsigned long long int>::max(), Value(std::numeric_limits<unsigned long long int>::max()).Get<unsigned long long int>());
+	ASSERT_EQUAL(std::numeric_limits<int>::max(), Value(static_cast<double>(std::numeric_limits<int>::max())).Get<int>());
+	ASSERT_EQUAL(std::numeric_limits<long long int>::min(), Value(-std::ldexp(1.0, std::numeric_limits<long long int>::digits)).Get<long long int>());
+	ASSERT_NO_THROW(Value(1).Get<int>());
+	ASSERT_TRUE(Value(1).Get<bool>());
+	ASSERT_EQUAL(0, Value(false).Get<int>());
+	ASSERT_FALSE(Value(0.0).Get<bool>());
+	RETURN_TEST(0);
 }
 
 int test_row_and_rows_value_semantics() {
-	constexpr std::string_view fn_name = "test_row_and_rows_value_semantics";
 	Row row;
-	ASSERT_TRUE(fn_name, row.empty());
-	ASSERT_EQUAL(fn_name, row.begin(), row.end());
+	ASSERT_TRUE(row.empty());
+	ASSERT_EQUAL(row.begin(), row.end());
 	row.add("id", Value{42});
 	row.add("name", Value{std::string_view{"Ada"}});
-	ASSERT_EQUAL(fn_name, 2, row.size());
-	ASSERT_EQUAL(fn_name, 42, row["id"].Get<int>());
-	ASSERT_EQUAL(fn_name, "Ada", row[1].Get<StormByte::Safe::String>());
+	ASSERT_EQUAL(2, row.size());
+	ASSERT_EQUAL(42, row["id"].Get<int>());
+	ASSERT_EQUAL("Ada", row[1].Get<StormByte::Safe::String>());
 
 	Row copied_row{row};
-	ASSERT_TRUE(fn_name, copied_row == row);
+	ASSERT_TRUE(copied_row == row);
 	Row assigned_row;
 	assigned_row = row;
-	ASSERT_TRUE(fn_name, assigned_row == row);
+	ASSERT_TRUE(assigned_row == row);
 	copied_row["id"] = Value{7};
-	ASSERT_EQUAL(fn_name, 42, row["id"].Get<int>());
-	ASSERT_EQUAL(fn_name, 7, copied_row["id"].Get<int>());
+	ASSERT_NOT_EQUAL(row, copied_row);
+	ASSERT_EQUAL(42, row["id"].Get<int>());
+	ASSERT_EQUAL(7, copied_row["id"].Get<int>());
 	Row moved_row{std::move(copied_row)};
-	ASSERT_EQUAL(fn_name, 7, moved_row["id"].Get<int>());
+	ASSERT_EQUAL(7, moved_row["id"].Get<int>());
 
 	Rows rows;
-	ASSERT_TRUE(fn_name, rows.empty());
-	ASSERT_EQUAL(fn_name, rows.begin(), rows.end());
+	ASSERT_TRUE(rows.empty());
+	ASSERT_EQUAL(rows.begin(), rows.end());
 	rows.add(row);
 	rows.add(std::move(moved_row));
-	ASSERT_EQUAL(fn_name, 2, rows.size());
-	ASSERT_TRUE(fn_name, rows.has_item(row));
-	ASSERT_EQUAL(fn_name, 2, std::distance(rows.begin(), rows.end()));
+	ASSERT_EQUAL(2, rows.size());
+	ASSERT_TRUE(rows.has_item(row));
+	ASSERT_EQUAL(2, std::distance(rows.begin(), rows.end()));
 	Rows copied_rows{rows};
-	ASSERT_TRUE(fn_name, copied_rows == rows);
+	ASSERT_TRUE(copied_rows == rows);
 	Rows assigned_rows;
 	assigned_rows = rows;
-	ASSERT_TRUE(fn_name, assigned_rows == rows);
+	ASSERT_TRUE(assigned_rows == rows);
 	Rows moved_rows{std::move(copied_rows)};
-	ASSERT_EQUAL(fn_name, 2, moved_rows.Count());
+	ASSERT_EQUAL(2, moved_rows.Count());
 	bool out_of_bounds = false;
 	try {
 		(void)moved_rows[2];
 	} catch (const OutOfBounds&) {
 		out_of_bounds = true;
 	}
-	ASSERT_TRUE(fn_name, out_of_bounds);
-	RETURN_TEST(fn_name, 0);
+	ASSERT_TRUE(out_of_bounds);
+	RETURN_TEST(0);
 }
 
 int test_embedded_nul_value_semantics() {
-	constexpr std::string_view fn_name = "test_embedded_nul_value_semantics";
 	constexpr std::string_view text{"left\0right", 10};
 	constexpr std::string_view name{"column\0suffix", 13};
 	Value value{text};
 	Value copy{value};
 	Value moved{std::move(copy)};
-	ASSERT_TRUE(fn_name, static_cast<std::string_view>(moved.Get<StormByte::Safe::String>()) == text);
+	ASSERT_TRUE(static_cast<std::string_view>(moved.Get<StormByte::Safe::String>()) == text);
 	Row row;
 	row.add("column", Value{1});
 	row.add(name, std::move(moved));
-	ASSERT_EQUAL(fn_name, 1, row["column"].Get<int>());
-	ASSERT_TRUE(fn_name, row[1].Name() == name);
-	ASSERT_TRUE(fn_name, static_cast<std::string_view>(row[name].Get<StormByte::Safe::String>()) == text);
+	ASSERT_EQUAL(1, row["column"].Get<int>());
+	ASSERT_TRUE(row[1].Name() == name);
+	ASSERT_TRUE(static_cast<std::string_view>(row[name].Get<StormByte::Safe::String>()) == text);
 	Rows rows;
 	rows.add(row);
 	StormByte::Safe::Vector<Rows> snapshots{rows};
 	const Rows snapshot = snapshots[0];
-	ASSERT_TRUE(fn_name, snapshot == rows);
-	ASSERT_TRUE(fn_name, static_cast<std::string_view>(snapshot[0][name].Get<StormByte::Safe::String>()) == text);
-	RETURN_TEST(fn_name, 0);
+	ASSERT_TRUE(snapshot == rows);
+	ASSERT_TRUE(static_cast<std::string_view>(snapshot[0][name].Get<StormByte::Safe::String>()) == text);
+	RETURN_TEST(0);
 }
 
 int test_telemetry_operation_metrics() {
-	constexpr std::string_view fn_name = "test_telemetry_operation_metrics";
 	auto telemetry = StormByte::Safe::Shared<TestTelemetry>::MakePointer<TestTelemetry>();
 	{
 		Telemetry::OperationScope operation{telemetry, Operation::Query};
@@ -277,13 +203,13 @@ int test_telemetry_operation_metrics() {
 		operation.Complete(false);
 	}
 	const OperationMetrics metrics = telemetry->Metrics(Operation::Query);
-	ASSERT_EQUAL(fn_name, std::uint64_t{2}, metrics.Attempts);
-	ASSERT_EQUAL(fn_name, std::uint64_t{1}, metrics.Successes);
-	ASSERT_EQUAL(fn_name, std::uint64_t{1}, metrics.Failures);
-	ASSERT_TRUE(fn_name, metrics.MinimumNanoseconds <= metrics.MeanNanoseconds());
-	ASSERT_TRUE(fn_name, metrics.MeanNanoseconds() <= metrics.MaximumNanoseconds);
-	ASSERT_EQUAL(fn_name, std::uint64_t{3}, telemetry->RowsReturned());
-	ASSERT_TRUE(fn_name, static_cast<std::string>(*telemetry).find("Query{calls=2") != std::string::npos);
+	ASSERT_EQUAL(std::uint64_t{2}, metrics.Attempts);
+	ASSERT_EQUAL(std::uint64_t{1}, metrics.Successes);
+	ASSERT_EQUAL(std::uint64_t{1}, metrics.Failures);
+	ASSERT_TRUE(metrics.MinimumNanoseconds <= metrics.MeanNanoseconds());
+	ASSERT_TRUE(metrics.MeanNanoseconds() <= metrics.MaximumNanoseconds);
+	ASSERT_EQUAL(std::uint64_t{3}, telemetry->RowsReturned());
+	ASSERT_CONTAINS(static_cast<std::string>(*telemetry), "Query{calls=2");
 
 	auto concurrent_telemetry = StormByte::Safe::Shared<TestTelemetry>::MakePointer<TestTelemetry>();
 	std::atomic<bool> stop_reader{false};
@@ -310,38 +236,37 @@ int test_telemetry_operation_metrics() {
 		thread.join();
 	stop_reader.store(true, std::memory_order_release);
 	reader.join();
-	ASSERT_TRUE(fn_name, !invalid_minimum.load(std::memory_order_relaxed));
+	ASSERT_TRUE(!invalid_minimum.load(std::memory_order_relaxed));
 	const OperationMetrics concurrent_metrics = concurrent_telemetry->Metrics(Operation::PreparedStatement);
-	ASSERT_EQUAL(fn_name, static_cast<std::uint64_t>(thread_count * operations_per_thread), concurrent_metrics.Attempts);
-	ASSERT_EQUAL(fn_name, static_cast<std::uint64_t>(thread_count * operations_per_thread), concurrent_metrics.Successes);
-	ASSERT_EQUAL(fn_name, static_cast<std::uint64_t>(thread_count * operations_per_thread), concurrent_telemetry->RowsReturned());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_EQUAL(static_cast<std::uint64_t>(thread_count * operations_per_thread), concurrent_metrics.Attempts);
+	ASSERT_EQUAL(static_cast<std::uint64_t>(thread_count * operations_per_thread), concurrent_metrics.Successes);
+	ASSERT_EQUAL(static_cast<std::uint64_t>(thread_count * operations_per_thread), concurrent_telemetry->RowsReturned());
+	RETURN_TEST(0);
 }
 
 int test_telemetry_overlapping_samples() {
-	constexpr std::string_view fn_name = "test_telemetry_overlapping_samples";
 	auto telemetry = StormByte::Safe::Shared<TestTelemetry>::MakePointer<TestTelemetry>();
 	{
 		Telemetry::OperationScope outer{telemetry, Operation::Query};
-		ASSERT_EQUAL(fn_name, std::uint64_t{0}, telemetry->Metrics(Operation::Query).Attempts);
+		ASSERT_EQUAL(std::uint64_t{0}, telemetry->Metrics(Operation::Query).Attempts);
 		{
 			Telemetry::OperationScope inner{telemetry, Operation::Query};
 			inner.Complete(true, 2);
 		}
-		ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Metrics(Operation::Query).Attempts);
+		ASSERT_EQUAL(std::uint64_t{1}, telemetry->Metrics(Operation::Query).Attempts);
 		outer.Complete(false);
 	}
 	const auto metrics = telemetry->Metrics(Operation::Query);
-	ASSERT_EQUAL(fn_name, std::uint64_t{2}, metrics.Attempts);
-	ASSERT_EQUAL(fn_name, std::uint64_t{1}, metrics.Successes);
-	ASSERT_EQUAL(fn_name, std::uint64_t{1}, metrics.Failures);
-	ASSERT_EQUAL(fn_name, std::uint64_t{2}, telemetry->RowsReturned());
+	ASSERT_EQUAL(std::uint64_t{2}, metrics.Attempts);
+	ASSERT_EQUAL(std::uint64_t{1}, metrics.Successes);
+	ASSERT_EQUAL(std::uint64_t{1}, metrics.Failures);
+	ASSERT_EQUAL(std::uint64_t{2}, telemetry->RowsReturned());
 	{
 		Telemetry::OperationScope ignored{telemetry, Operation::Count};
 		Telemetry::OperationScope empty{{}, Operation::Query};
 	}
-	ASSERT_EQUAL(fn_name, std::uint64_t{2}, telemetry->Metrics(Operation::Query).Attempts);
-	RETURN_TEST(fn_name, 0);
+	ASSERT_EQUAL(std::uint64_t{2}, telemetry->Metrics(Operation::Query).Attempts);
+	RETURN_TEST(0);
 }
 
 int main() {

@@ -48,6 +48,12 @@ Exception::Exception(std::string_view message):
 
 Exception::~Exception() noexcept = default;
 
+StormByte::Safe::String Exception::ComponentPath(const std::string_view prefix, const std::string_view component) {
+	StormByte::Safe::String path{prefix};
+	path.append(component);
+	return path;
+}
+
 ConnectionError::ConnectionError(std::string_view error):
 	Exception(StormByte::Exception::Path{"Database.Connection"}, "{}", error) {}
 

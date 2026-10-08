@@ -43,20 +43,22 @@
 
 using namespace StormByte::Database;
 
-Value::Value(std::string_view value) noexcept:
+Value::Value(std::string_view value):
 	m_value(StormByte::Safe::String{value}), m_type(Type::Text) {}
 
-Value::Value(const StormByte::BinaryData& value):
+Value::Value(const StormByte::Safe::Binary& value):
 	m_value(value), m_type(Type::Blob) {}
 
-Value::Value(StormByte::BinaryData&& value) noexcept:
+Value::Value(StormByte::Safe::Binary&& value):
 	m_value(std::move(value)), m_type(Type::Blob) {}
 
 Value::Value(const Value& other):
 	m_value(other.m_value), m_type(other.m_type) {}
 
 Value::Value(Value&& other) noexcept:
-	m_value(std::move(other.m_value)), m_type(other.m_type) {}
+	m_value(std::move(other.m_value)), m_type(other.m_type) {
+	other.m_type = Type::Null;
+}
 
 Value& Value::operator=(const Value& other) {
 	if (this != &other) {
@@ -70,6 +72,7 @@ Value& Value::operator=(Value&& other) noexcept {
 	if (this != &other) {
 		m_value = std::move(other.m_value);
 		m_type = other.m_type;
+		other.m_type = Type::Null;
 	}
 	return *this;
 }

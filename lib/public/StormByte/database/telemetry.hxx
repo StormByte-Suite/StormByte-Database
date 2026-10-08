@@ -3,18 +3,51 @@
  *
  * This file is part of StormByte-Database.
  *
+ * StormByte-Database original source is dual-licensed:
+ *
+ * 1. GNU Lesser General Public License v3.0 (or later)
+ *    You may redistribute and/or modify this file under the terms of the
+ *    GNU Lesser General Public License as published by the Free Software
+ *    Foundation, either version 3 of the License, or (at your option)
+ *    any later version.
+ *
+ * 2. Commercial license
+ *    Alternatively, this file may be used under the terms of a commercial
+ *    license agreement with the copyright holder
+ *    (David C. Manuelda <StormByte@gmail.com>).
+ *
+ * Both licenses apply only to original StormByte-Database source in this
+ * repository. They do not cover other StormByte modules or any third-party
+ * material shipped with this repository (including everything under
+ * thirdparty/, and in particular the bundled StormByte-Logger tree and
+ * the PostgreSQL, MariaDB and SQLite trees), which remain under their own
+ * licenses.
+ *
+ * Neither license grants any patent rights. Any patent licenses required
+ * to use this software or third-party components must be obtained separately
+ * from the patent holders.
+ *
+ * StormByte-Database is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * version 3 along with StormByte-Database. If not, see
+ * <https://www.gnu.org/licenses/lgpl-3.0.html>.
+ *
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
 #pragma once
 
 #include <StormByte/database/visibility.h>
+#include <StormByte/safe/atomic.hxx>
 #include <StormByte/safe/pointers.hxx>
 #include <StormByte/safe/string.hxx>
 #include <StormByte/telemetry.hxx>
 
 #include <array>
-#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -148,7 +181,7 @@ namespace StormByte {
 				/**
 				 * @brief Construct zeroed counters.
 				 */
-				Telemetry() noexcept;
+				Telemetry();
 
 				/**
 				 * @brief Obtain a thread-safe metrics snapshot for an operation.
@@ -213,10 +246,10 @@ namespace StormByte {
 				 * @brief Atomic aggregates for one operation category.
 				 */
 				struct Counter {
-					std::atomic<std::uint64_t> successes{0}; ///< Success count.
-					std::atomic<std::uint64_t> failures{0}; ///< Failure count.
-					std::atomic<std::uint64_t> minimum_nanoseconds{std::numeric_limits<std::uint64_t>::max()}; ///< Minimum duration.
-					std::atomic<std::uint64_t> maximum_nanoseconds{0}; ///< Maximum duration.
+					StormByte::Safe::Atomic<std::uint64_t> successes{0}; ///< Success count.
+					StormByte::Safe::Atomic<std::uint64_t> failures{0}; ///< Failure count.
+					StormByte::Safe::Atomic<std::uint64_t> minimum_nanoseconds{std::numeric_limits<std::uint64_t>::max()}; ///< Minimum duration.
+					StormByte::Safe::Atomic<std::uint64_t> maximum_nanoseconds{0}; ///< Maximum duration.
 				};
 
 				/**
@@ -229,11 +262,14 @@ namespace StormByte {
 				void RecordOperation(Operation operation, bool success, std::chrono::nanoseconds elapsed, std::uint64_t rows_returned) noexcept;
 
 				std::array<Counter, static_cast<std::size_t>(Operation::Count)> m_operations; ///< Per-operation aggregates.
-				std::array<std::atomic<std::uint64_t>, static_cast<std::size_t>(BackendEvent::Count)> m_events; ///< Backend event counters.
-				std::atomic<std::uint64_t> m_rows_returned; ///< Successful result rows.
+				std::array<StormByte::Safe::Atomic<std::uint64_t>, static_cast<std::size_t>(BackendEvent::Count)> m_events; ///< Backend event counters.
+				StormByte::Safe::Atomic<std::uint64_t> m_rows_returned; ///< Successful result rows.
 		};
 	}
 }
+
+/** @brief Numeric metric snapshots cross module boundaries by value under the compatible ABI contract. */
+STORMBYTE_DECLARE_MAYBE_SAFE(StormByte::Database::OperationMetrics);
 
 /** @brief Conditional DLL safety requires compatible ABIs and live provider modules; derived telemetry must preserve Safe ownership. */
 STORMBYTE_DECLARE_MAYBE_SAFE(StormByte::Database::Telemetry);

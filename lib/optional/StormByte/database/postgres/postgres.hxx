@@ -45,11 +45,7 @@
 #include <StormByte/database/postgres/prepared_stmt.hxx>
 #include <StormByte/database/postgres/telemetry.hxx>
 
-#include <memory>
-#include <string>
 #include <string_view>
-
-struct pg_conn;
 
 /**
  * @namespace StormByte
@@ -66,6 +62,12 @@ namespace StormByte {
 		 * @brief PostgreSQL backend of the Database module.
 		 */
 		namespace Postgres {
+			/**
+			 * @struct ConnectionHandle
+			 * @brief Private opaque holder for the native PostgreSQL connection.
+			 */
+			struct ConnectionHandle;
+
 			/**
 			 * @class Postgres
 			 * @brief PostgreSQL backend.
@@ -141,7 +143,7 @@ namespace StormByte {
 					StormByte::Safe::String m_user;		///< Base-owned user
 					StormByte::Safe::String m_password;	///< Base-owned password
 					StormByte::Safe::String m_dbname;		///< Base-owned database name
-					struct pg_conn *m_conn; ///< Connection handle
+					StormByte::Safe::Unique<ConnectionHandle> m_connection_handle; ///< Opaque owner for the native PostgreSQL connection.
 
 					/**
 					 * @brief Connect via PQconnectdb.

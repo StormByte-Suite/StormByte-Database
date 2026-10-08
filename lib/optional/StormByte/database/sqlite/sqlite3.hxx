@@ -46,10 +46,7 @@
 #include <StormByte/database/sqlite/telemetry.hxx>
 
 #include <filesystem>
-#include <memory>
 #include <string_view>
-
-struct sqlite3;
 
 /**
  * @namespace StormByte
@@ -66,6 +63,12 @@ namespace StormByte {
 		 * @brief SQLite backend of the Database module.
 		 */
 		namespace SQLite {
+			/**
+			 * @struct ConnectionHandle
+			 * @brief Private opaque holder for the native SQLite database.
+			 */
+			struct ConnectionHandle;
+
 			/**
 			 * @class SQLite3
 			 * @brief SQLite3 backend.
@@ -178,7 +181,7 @@ namespace StormByte {
 					}
 
 					StormByte::Safe::String m_database_file; ///< Base-owned UTF-8 database file path
-					sqlite3 *m_database;				   ///< SQLite handle (incomplete type)
+					StormByte::Safe::Unique<ConnectionHandle> m_connection_handle; ///< Opaque owner for the native SQLite database.
 
 					/**
 					 * @brief Open the database and initialize SQLite if needed.

@@ -140,210 +140,192 @@ class TestFileDatabase : public SQLite3 {
 		}
 };
 int not_connected_query() {
-	const std::string fn_name = "not_connected_query";
 	TestMemoryDatabase db;
 	auto res = db.Query("SELECT 1;");
-	ASSERT_FALSE(fn_name, res.has_value());
+	ASSERT_FALSE(res.has_value());
 	const auto telemetry = db.Telemetry();
-	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::Query).Failures);
-	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Events(StormByte::Database::BackendEvent::Connection));
-	RETURN_TEST(fn_name, 0);
+	ASSERT_EQUAL(std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::Query).Failures);
+	ASSERT_EQUAL(std::uint64_t{1}, telemetry->Events(StormByte::Database::BackendEvent::Connection));
+	RETURN_TEST(0);
 }
 
 int not_connected_silent() {
-	const std::string fn_name = "not_connected_silent";
 	TestMemoryDatabase db;
-	ASSERT_FALSE(fn_name, db.SilentQuery("SELECT 1;"));
-	RETURN_TEST(fn_name, 0);
+	ASSERT_FALSE(db.SilentQuery("SELECT 1;"));
+	RETURN_TEST(0);
 }
 
 int not_connected_execute() {
-	const std::string fn_name = "not_connected_execute";
 	TestMemoryDatabase db;
 	auto res = db.ExecuteSTMT("select_users");
-	ASSERT_FALSE(fn_name, res.has_value());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_FALSE(res.has_value());
+	RETURN_TEST(0);
 }
 
 int not_connected_transaction() {
-	const std::string fn_name = "not_connected_transaction";
 	TestMemoryDatabase db;
 	auto tx = db.BeginTransaction();
-	ASSERT_FALSE(fn_name, tx.has_value());
-	ASSERT_TRUE(fn_name, tx.error() != nullptr);
-	ASSERT_TRUE(fn_name, std::string{tx.error()->what()}.find("Unable to begin transaction") != std::string::npos);
-	RETURN_TEST(fn_name, 0);
+	ASSERT_FALSE(tx.has_value());
+	ASSERT_TRUE(tx.error() != nullptr);
+	ASSERT_CONTAINS(std::string{tx.error()->what()}, "Unable to begin transaction");
+	RETURN_TEST(0);
 }
 
 int is_connected_test() {
-	const std::string fn_name = "is_connected_test";
 	TestMemoryDatabase db;
-	ASSERT_FALSE(fn_name, db.IsConnected());
+	ASSERT_FALSE(db.IsConnected());
 	db.Connect();
-	ASSERT_TRUE(fn_name, db.IsConnected());
+	ASSERT_TRUE(db.IsConnected());
 	db.Disconnect();
-	ASSERT_FALSE(fn_name, db.IsConnected());
+	ASSERT_FALSE(db.IsConnected());
 	db.Disconnect();
-	ASSERT_TRUE(fn_name, db.Connect());
+	ASSERT_TRUE(db.Connect());
 	db.Disconnect();
-	RETURN_TEST(fn_name, 0);
+	RETURN_TEST(0);
 }
 
 int double_connect() {
-	const std::string fn_name = "double_connect";
 	TestMemoryDatabase db;
-	ASSERT_TRUE(fn_name, db.Connect());
-	ASSERT_FALSE(fn_name, db.Connect());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_TRUE(db.Connect());
+	ASSERT_FALSE(db.Connect());
+	RETURN_TEST(0);
 }
 
 int verify_inserted_users() {
-	const std::string fn_name = "verify_inserted_users";
 	TestMemoryDatabase db;
 	db.Connect();
 	auto expected_rows = db.get_users();
-	ASSERT_TRUE(fn_name, expected_rows.has_value());
+	ASSERT_TRUE(expected_rows.has_value());
 	const auto& rows = expected_rows.value();
-	ASSERT_EQUAL(fn_name, 2, rows.Count());
-	ASSERT_EQUAL(fn_name, "Alice", rows[0][0].Get<StormByte::Safe::String>());
-	ASSERT_EQUAL(fn_name, "alice@example.com", rows[0][1].Get<StormByte::Safe::String>());
-	ASSERT_EQUAL(fn_name, "Bob", rows[1][0].Get<StormByte::Safe::String>());
-	ASSERT_EQUAL(fn_name, "bob@example.com", rows[1][1].Get<StormByte::Safe::String>());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_EQUAL(2, rows.Count());
+	ASSERT_EQUAL("Alice", rows[0][0].Get<StormByte::Safe::String>());
+	ASSERT_EQUAL("alice@example.com", rows[0][1].Get<StormByte::Safe::String>());
+	ASSERT_EQUAL("Bob", rows[1][0].Get<StormByte::Safe::String>());
+	ASSERT_EQUAL("bob@example.com", rows[1][1].Get<StormByte::Safe::String>());
+	RETURN_TEST(0);
 }
 
 int verify_inserted_products() {
-	const std::string fn_name = "verify_inserted_products";
 	TestMemoryDatabase db;
 	db.Connect();
 	auto expected_rows = db.get_products();
-	ASSERT_TRUE(fn_name, expected_rows.has_value());
+	ASSERT_TRUE(expected_rows.has_value());
 	const auto& rows = expected_rows.value();
-	ASSERT_EQUAL(fn_name, 2, rows.Count());
-	ASSERT_EQUAL(fn_name, "Laptop", rows[0][0].Get<StormByte::Safe::String>());
-	ASSERT_EQUAL(fn_name, 999.99, rows[0][1].Get<double>());
-	ASSERT_EQUAL(fn_name, "Mouse", rows[1][0].Get<StormByte::Safe::String>());
-	ASSERT_EQUAL(fn_name, 19.99, rows[1][1].Get<double>());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_EQUAL(2, rows.Count());
+	ASSERT_EQUAL("Laptop", rows[0][0].Get<StormByte::Safe::String>());
+	ASSERT_EQUAL(999.99, rows[0][1].Get<double>());
+	ASSERT_EQUAL("Mouse", rows[1][0].Get<StormByte::Safe::String>());
+	ASSERT_EQUAL(19.99, rows[1][1].Get<double>());
+	RETURN_TEST(0);
 }
 
 int verify_inserted_orders() {
-	const std::string fn_name = "verify_inserted_orders";
 	TestMemoryDatabase db;
 	db.Connect();
 	auto expected_rows = db.get_orders();
-	ASSERT_TRUE(fn_name, expected_rows.has_value());
+	ASSERT_TRUE(expected_rows.has_value());
 	const auto& rows = expected_rows.value();
-	ASSERT_EQUAL(fn_name, 2, rows.Count());
-	ASSERT_EQUAL(fn_name, 1, rows[0][0].Get<int>());
-	ASSERT_EQUAL(fn_name, 1, rows[0][1].Get<int>());
-	ASSERT_EQUAL(fn_name, 1, rows[0][2].Get<int>());
-	ASSERT_EQUAL(fn_name, 2, rows[1][0].Get<int>());
-	ASSERT_EQUAL(fn_name, 2, rows[1][1].Get<int>());
-	ASSERT_EQUAL(fn_name, 2, rows[1][2].Get<int>());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_EQUAL(2, rows.Count());
+	ASSERT_EQUAL(1, rows[0][0].Get<int>());
+	ASSERT_EQUAL(1, rows[0][1].Get<int>());
+	ASSERT_EQUAL(1, rows[0][2].Get<int>());
+	ASSERT_EQUAL(2, rows[1][0].Get<int>());
+	ASSERT_EQUAL(2, rows[1][1].Get<int>());
+	ASSERT_EQUAL(2, rows[1][2].Get<int>());
+	RETURN_TEST(0);
 }
 
 int verify_relationships() {
-	const std::string fn_name = "verify_relationships";
 	TestMemoryDatabase db;
 	db.Connect();
 	auto expected_rows = db.get_joined_data();
-	ASSERT_TRUE(fn_name, expected_rows.has_value());
+	ASSERT_TRUE(expected_rows.has_value());
 	const auto& rows = expected_rows.value();
-	ASSERT_EQUAL(fn_name, 2, rows.Count());
-	ASSERT_EQUAL(fn_name, "Alice", rows[0][0].Get<StormByte::Safe::String>());
-	ASSERT_EQUAL(fn_name, "Laptop", rows[0][1].Get<StormByte::Safe::String>());
-	ASSERT_EQUAL(fn_name, 1, rows[0][2].Get<int>());
-	ASSERT_EQUAL(fn_name, "Bob", rows[1][0].Get<StormByte::Safe::String>());
-	ASSERT_EQUAL(fn_name, "Mouse", rows[1][1].Get<StormByte::Safe::String>());
-	ASSERT_EQUAL(fn_name, 2, rows[1][2].Get<int>());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_EQUAL(2, rows.Count());
+	ASSERT_EQUAL("Alice", rows[0][0].Get<StormByte::Safe::String>());
+	ASSERT_EQUAL("Laptop", rows[0][1].Get<StormByte::Safe::String>());
+	ASSERT_EQUAL(1, rows[0][2].Get<int>());
+	ASSERT_EQUAL("Bob", rows[1][0].Get<StormByte::Safe::String>());
+	ASSERT_EQUAL("Mouse", rows[1][1].Get<StormByte::Safe::String>());
+	ASSERT_EQUAL(2, rows[1][2].Get<int>());
+	RETURN_TEST(0);
 }
 
 int query_test() {
-	const std::string fn_name = "query_test";
 	TestMemoryDatabase db;
 	db.Connect();
 	auto expected_rows = db.Query("SELECT COUNT(*) FROM users;");
-	ASSERT_TRUE(fn_name, expected_rows.has_value());
-	ASSERT_EQUAL(fn_name, 2, expected_rows.value()[0][0].Get<int>());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_TRUE(expected_rows.has_value());
+	ASSERT_EQUAL(2, expected_rows.value()[0][0].Get<int>());
+	RETURN_TEST(0);
 }
 
 int empty_result_test() {
-	const std::string fn_name = "empty_result_test";
 	TestMemoryDatabase db;
 	db.Connect();
 	auto expected_rows = db.Query("SELECT * FROM users WHERE name = 'NonExistent';");
-	ASSERT_TRUE(fn_name, expected_rows.has_value());
-	ASSERT_EQUAL(fn_name, 0, expected_rows.value().Count());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_TRUE(expected_rows.has_value());
+	ASSERT_EQUAL(0, expected_rows.value().Count());
+	RETURN_TEST(0);
 }
 
 int syntax_error_test() {
-	const std::string fn_name = "syntax_error_test";
 	TestMemoryDatabase db;
 	db.Connect();
 	auto res = db.Query("SELEC * FROM users;");
-	ASSERT_FALSE(fn_name, res.has_value());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_FALSE(res.has_value());
+	RETURN_TEST(0);
 }
 
 int silent_syntax_error_preserves_connection() {
-	const std::string fn_name = "silent_syntax_error_preserves_connection";
 	TestMemoryDatabase db;
-	ASSERT_TRUE(fn_name, db.Connect());
-	ASSERT_FALSE(fn_name, db.SilentQuery("SELEC * FROM users;"));
+	ASSERT_TRUE(db.Connect());
+	ASSERT_FALSE(db.SilentQuery("SELEC * FROM users;"));
 	auto rows = db.Query("SELECT COUNT(*) FROM users;");
-	ASSERT_TRUE(fn_name, rows.has_value());
-	ASSERT_EQUAL(fn_name, 2, rows.value()[0][0].Get<int>());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_TRUE(rows.has_value());
+	ASSERT_EQUAL(2, rows.value()[0][0].Get<int>());
+	RETURN_TEST(0);
 }
 
 int missing_required_bind_is_error() {
-	const std::string fn_name = "missing_required_bind_is_error";
 	TestMemoryDatabase db;
-	ASSERT_TRUE(fn_name, db.Connect());
+	ASSERT_TRUE(db.Connect());
 	auto result = db.ExecuteSTMT("insert_required");
-	ASSERT_FALSE(fn_name, result.has_value());
-	ASSERT_FALSE(fn_name, db.ExecuteSTMT("insert_required", "extra", "argument").has_value());
-	ASSERT_TRUE(fn_name, db.ExecuteSTMT("insert_required", "valid").has_value());
+	ASSERT_FALSE(result.has_value());
+	ASSERT_FALSE(db.ExecuteSTMT("insert_required", "extra", "argument").has_value());
+	ASSERT_TRUE(db.ExecuteSTMT("insert_required", "valid").has_value());
 	auto rows = db.Query("SELECT COUNT(*) FROM required_values;");
-	ASSERT_TRUE(fn_name, rows.has_value());
-	ASSERT_EQUAL(fn_name, 1, rows.value()[0][0].Get<int>());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_TRUE(rows.has_value());
+	ASSERT_EQUAL(1, rows.value()[0][0].Get<int>());
+	RETURN_TEST(0);
 }
 
 int unsigned_bind_preserves_value() {
-	const std::string fn_name = "unsigned_bind_preserves_value";
 	TestMemoryDatabase db;
-	ASSERT_TRUE(fn_name, db.Connect());
+	ASSERT_TRUE(db.Connect());
 	const unsigned int value = std::numeric_limits<unsigned int>::max();
-	ASSERT_TRUE(fn_name, db.ExecuteSTMT("insert_unsigned", value).has_value());
+	ASSERT_TRUE(db.ExecuteSTMT("insert_unsigned", value).has_value());
 	auto rows = db.Query("SELECT CAST(value AS TEXT) FROM unsigned_values;");
-	ASSERT_TRUE(fn_name, rows.has_value());
-	ASSERT_EQUAL(fn_name, StormByte::Safe::String{std::to_string(value)}, rows.value()[0][0].Get<StormByte::Safe::String>());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_TRUE(rows.has_value());
+	ASSERT_EQUAL(StormByte::Safe::String{std::to_string(value)}, rows.value()[0][0].Get<StormByte::Safe::String>());
+	RETURN_TEST(0);
 }
 
 int constraint_violation_preserves_connection() {
-	const std::string fn_name = "constraint_violation_preserves_connection";
 	TestMemoryDatabase db;
-	ASSERT_TRUE(fn_name, db.Connect());
-	ASSERT_FALSE(fn_name, db.SilentQuery("INSERT INTO users (name, email) VALUES ('Mallory', 'alice@example.com');"));
+	ASSERT_TRUE(db.Connect());
+	ASSERT_FALSE(db.SilentQuery("INSERT INTO users (name, email) VALUES ('Mallory', 'alice@example.com');"));
 	auto rows = db.Query("SELECT COUNT(*) FROM users;");
-	ASSERT_TRUE(fn_name, rows.has_value());
-	ASSERT_EQUAL(fn_name, 2, rows.value()[0][0].Get<int>());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_TRUE(rows.has_value());
+	ASSERT_EQUAL(2, rows.value()[0][0].Get<int>());
+	RETURN_TEST(0);
 }
 
 int invalid_row_index_throws() {
-	const std::string fn_name = "invalid_row_index_throws";
 	TestMemoryDatabase db;
-	ASSERT_TRUE(fn_name, db.Connect());
+	ASSERT_TRUE(db.Connect());
 	auto rows = db.get_users();
-	ASSERT_TRUE(fn_name, rows.has_value());
+	ASSERT_TRUE(rows.has_value());
 	bool threw = false;
 	try {
 		(void)rows.value()[0][99];
@@ -351,109 +333,101 @@ int invalid_row_index_throws() {
 		threw = true;
 	}
 
-	ASSERT_TRUE(fn_name, threw);
-	RETURN_TEST(fn_name, 0);
+	ASSERT_TRUE(threw);
+	RETURN_TEST(0);
 }
 
 int bool_test() {
-	const std::string fn_name = "bool_test";
 	TestMemoryDatabase db;
 	db.Connect();
 	auto expected_rows = db.Query("SELECT COUNT(*) > 0 FROM users;");
-	ASSERT_TRUE(fn_name, expected_rows.has_value());
-	ASSERT_EQUAL(fn_name, true, static_cast<bool>(expected_rows.value()[0][0].Get<int>()));
-	RETURN_TEST(fn_name, 0);
+	ASSERT_TRUE(expected_rows.has_value());
+	ASSERT_TRUE(static_cast<bool>(expected_rows.value()[0][0].Get<int>()));
+	RETURN_TEST(0);
 }
 
 int scalar_backend_contract() {
 	TestMemoryDatabase db;
-	int result = verify_scalar_backend_contract(db, "scalar_backend_contract");
+	int result = verify_scalar_backend_contract(db);
 	TestMemoryDatabase binary_db;
-	result += verify_binary_backend_contract(binary_db, "binary_backend_contract");
+	result += verify_binary_backend_contract(binary_db);
 	return result;
 }
 
 int verify_blobs() {
-	const std::string fn_name = "verify_blobs";
 	TestMemoryDatabase db;
 	db.Connect();
-	StormByte::BinaryData data{std::byte{0}, std::byte{1}, std::byte{2}, std::byte{0xFF}};
+	StormByte::Safe::Binary data{std::byte{0}, std::byte{1}, std::byte{2}, std::byte{0xFF}};
 	auto insert_res = db.ExecuteSTMT("insert_blob", data);
-	ASSERT_TRUE(fn_name, insert_res.has_value());
+	ASSERT_TRUE(insert_res.has_value());
 	auto expected_rows = db.get_blob();
-	ASSERT_TRUE(fn_name, expected_rows.has_value());
-	const auto& blob = expected_rows.value()[0][0].Get<StormByte::BinaryData>();
-	ASSERT_EQUAL(fn_name, 4, static_cast<int>(blob.size()));
-	ASSERT_EQUAL(fn_name, 0, static_cast<int>(static_cast<unsigned char>(blob[0])));
-	ASSERT_EQUAL(fn_name, 255, static_cast<int>(static_cast<unsigned char>(blob[3])));
-	RETURN_TEST(fn_name, 0);
+	ASSERT_TRUE(expected_rows.has_value());
+	const auto& blob = expected_rows.value()[0][0].Get<StormByte::Safe::Binary>();
+	ASSERT_EQUAL(4, static_cast<int>(blob.size()));
+	ASSERT_EQUAL(0, static_cast<int>(static_cast<unsigned char>(blob[0])));
+	ASSERT_EQUAL(255, static_cast<int>(static_cast<unsigned char>(blob[3])));
+	RETURN_TEST(0);
 }
 
 int empty_blob_test() {
-	const std::string fn_name = "empty_blob_test";
 	TestMemoryDatabase db;
-	ASSERT_TRUE(fn_name, db.Connect());
-	StormByte::BinaryData empty;
+	ASSERT_TRUE(db.Connect());
+	StormByte::Safe::Binary empty;
 	auto insert_res = db.ExecuteSTMT("insert_blob", empty);
-	ASSERT_TRUE(fn_name, insert_res.has_value());
+	ASSERT_TRUE(insert_res.has_value());
 	auto rows = db.get_blob();
-	ASSERT_TRUE(fn_name, rows.has_value());
-	ASSERT_EQUAL(fn_name, 1, rows.value().Count());
-	ASSERT_FALSE(fn_name, rows.value()[0][0].IsNull());
-	ASSERT_EQUAL(fn_name, 0, rows.value()[0][0].Get<StormByte::BinaryData>().size());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_TRUE(rows.has_value());
+	ASSERT_EQUAL(1, rows.value().Count());
+	ASSERT_FALSE(rows.value()[0][0].IsNull());
+	ASSERT_EQUAL(0, rows.value()[0][0].Get<StormByte::Safe::Binary>().size());
+	RETURN_TEST(0);
 }
 
 int null_value_test() {
-	const std::string fn_name = "null_value_test";
 	TestMemoryDatabase db;
 	db.Connect();
 	auto rows = db.ExecuteSTMT("select_nulls");
-	ASSERT_TRUE(fn_name, rows.has_value());
-	ASSERT_TRUE(fn_name, rows.value()[0][0].IsNull());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_TRUE(rows.has_value());
+	ASSERT_TRUE(rows.value()[0][0].IsNull());
+	RETURN_TEST(0);
 }
 
 int bind_null_test() {
-	const std::string fn_name = "bind_null_test";
 	TestMemoryDatabase db;
 	db.Connect();
 	auto res = db.ExecuteSTMT("insert_null", nullptr);
-	ASSERT_TRUE(fn_name, res.has_value());
+	ASSERT_TRUE(res.has_value());
 	auto rows = db.Query("SELECT value FROM nulls ORDER BY id DESC LIMIT 1;");
-	ASSERT_TRUE(fn_name, rows.has_value());
-	ASSERT_EQUAL(fn_name, 1, rows.value().Count());
-	ASSERT_TRUE(fn_name, rows.value()[0][0].IsNull());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_TRUE(rows.has_value());
+	ASSERT_EQUAL(1, rows.value().Count());
+	ASSERT_TRUE(rows.value()[0][0].IsNull());
+	RETURN_TEST(0);
 }
 
 int unknown_stmt_test() {
-	const std::string fn_name = "unknown_stmt_test";
 	TestMemoryDatabase db;
 	db.Connect();
 	auto res = db.ExecuteSTMT("non_existent_stmt");
-	ASSERT_FALSE(fn_name, res.has_value());
-	ASSERT_TRUE(fn_name, std::string{res.error()->what()}.find("not found") != std::string::npos);
-	RETURN_TEST(fn_name, 0);
+	ASSERT_FALSE(res.has_value());
+	ASSERT_CONTAINS(std::string{res.error()->what()}, "not found");
+	RETURN_TEST(0);
 }
 
 int name_access_test() {
-	const std::string fn_name = "name_access_test";
 	TestMemoryDatabase db;
 	db.Connect();
 	auto expected_rows = db.get_users();
-	ASSERT_TRUE(fn_name, expected_rows.has_value());
-	ASSERT_EQUAL(fn_name, "Alice", expected_rows.value()[0]["name"].Get<StormByte::Safe::String>());
-	ASSERT_EQUAL(fn_name, "alice@example.com", expected_rows.value()[0]["email"].Get<StormByte::Safe::String>());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_TRUE(expected_rows.has_value());
+	ASSERT_EQUAL("Alice", expected_rows.value()[0]["name"].Get<StormByte::Safe::String>());
+	ASSERT_EQUAL("alice@example.com", expected_rows.value()[0]["email"].Get<StormByte::Safe::String>());
+	RETURN_TEST(0);
 }
 
 int name_access_missing_column() {
-	const std::string fn_name = "name_access_missing_column";
 	TestMemoryDatabase db;
 	db.Connect();
 	auto expected_rows = db.get_users();
-	ASSERT_TRUE(fn_name, expected_rows.has_value());
+	ASSERT_TRUE(expected_rows.has_value());
 	bool threw = false;
 	try {
 		(void)expected_rows.value()[0]["non_existent_column"];
@@ -461,133 +435,124 @@ int name_access_missing_column() {
 		threw = true;
 	}
 
-	ASSERT_TRUE(fn_name, threw);
-	RETURN_TEST(fn_name, 0);
+	ASSERT_TRUE(threw);
+	RETURN_TEST(0);
 }
 
 int transaction_commit_test() {
-	const std::string fn_name = "transaction_commit_test";
 	TestMemoryDatabase db;
 	db.Connect();
 	{
 		auto tx_result = db.BeginTransaction();
-		ASSERT_TRUE(fn_name, tx_result.has_value());
+		ASSERT_TRUE(tx_result.has_value());
 		auto tx = std::move(*tx_result);
-		ASSERT_TRUE(fn_name, tx.IsActive());
+		ASSERT_TRUE(tx.IsActive());
 		db.SilentQuery("INSERT INTO users (name, email) VALUES ('Charlie', 'charlie@example.com');");
 		tx.Commit();
-		ASSERT_FALSE(fn_name, tx.IsActive());
+		ASSERT_FALSE(tx.IsActive());
 		tx.Commit();
 	}
 
 	auto rows = db.Query("SELECT COUNT(*) FROM users;");
-	ASSERT_TRUE(fn_name, rows.has_value());
-	ASSERT_EQUAL(fn_name, 3, rows.value()[0][0].Get<int>());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_TRUE(rows.has_value());
+	ASSERT_EQUAL(3, rows.value()[0][0].Get<int>());
+	RETURN_TEST(0);
 }
 
 int transaction_rollback_explicit() {
-	const std::string fn_name = "transaction_rollback_explicit";
 	TestMemoryDatabase db;
 	db.Connect();
 	{
 		auto tx_result = db.BeginTransaction();
-		ASSERT_TRUE(fn_name, tx_result.has_value());
+		ASSERT_TRUE(tx_result.has_value());
 		auto tx = std::move(*tx_result);
 		db.SilentQuery("INSERT INTO users (name, email) VALUES ('David', 'david@example.com');");
 		db.SilentQuery("INSERT INTO users (name, email) VALUES ('David Two', 'david2@example.com');");
 		tx.Rollback();
-		ASSERT_FALSE(fn_name, tx.IsActive());
+		ASSERT_FALSE(tx.IsActive());
 		tx.Rollback();
 	}
 
 	auto rows = db.Query("SELECT COUNT(*) FROM users WHERE name = 'David';");
-	ASSERT_TRUE(fn_name, rows.has_value());
-	ASSERT_EQUAL(fn_name, 0, rows.value()[0][0].Get<int>());
+	ASSERT_TRUE(rows.has_value());
+	ASSERT_EQUAL(0, rows.value()[0][0].Get<int>());
 	rows = db.Query("SELECT COUNT(*) FROM users WHERE email = 'david2@example.com';");
-	ASSERT_TRUE(fn_name, rows.has_value());
-	ASSERT_EQUAL(fn_name, 0, rows.value()[0][0].Get<int>());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_TRUE(rows.has_value());
+	ASSERT_EQUAL(0, rows.value()[0][0].Get<int>());
+	RETURN_TEST(0);
 }
 
 int transaction_rollback_after_statement_error() {
-	const std::string fn_name = "transaction_rollback_after_statement_error";
 	TestMemoryDatabase db;
-	ASSERT_TRUE(fn_name, db.Connect());
+	ASSERT_TRUE(db.Connect());
 	auto tx_result = db.BeginTransaction();
-	ASSERT_TRUE(fn_name, tx_result.has_value());
+	ASSERT_TRUE(tx_result.has_value());
 	auto tx = std::move(*tx_result);
-	ASSERT_TRUE(fn_name, db.SilentQuery("INSERT INTO users (name, email) VALUES ('Transient', 'transient@example.com');"));
-	ASSERT_FALSE(fn_name, db.SilentQuery("INSERT INTO users (name, email) VALUES ('Conflict', 'alice@example.com');"));
+	ASSERT_TRUE(db.SilentQuery("INSERT INTO users (name, email) VALUES ('Transient', 'transient@example.com');"));
+	ASSERT_FALSE(db.SilentQuery("INSERT INTO users (name, email) VALUES ('Conflict', 'alice@example.com');"));
 	tx.Rollback();
 	auto rows = db.Query("SELECT COUNT(*) FROM users WHERE email = 'transient@example.com';");
-	ASSERT_TRUE(fn_name, rows.has_value());
-	ASSERT_EQUAL(fn_name, 0, rows.value()[0][0].Get<int>());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_TRUE(rows.has_value());
+	ASSERT_EQUAL(0, rows.value()[0][0].Get<int>());
+	RETURN_TEST(0);
 }
 
 int transaction_rollback_auto() {
-	const std::string fn_name = "transaction_rollback_auto";
 	TestMemoryDatabase db;
 	db.Connect();
 	{
 		auto tx_result = db.BeginTransaction();
-		ASSERT_TRUE(fn_name, tx_result.has_value());
+		ASSERT_TRUE(tx_result.has_value());
 		auto tx = std::move(*tx_result);
 		db.SilentQuery("INSERT INTO users (name, email) VALUES ('Eve', 'eve@example.com');");
 	}
 
 	auto rows = db.Query("SELECT COUNT(*) FROM users WHERE name = 'Eve';");
-	ASSERT_TRUE(fn_name, rows.has_value());
-	ASSERT_EQUAL(fn_name, 0, rows.value()[0][0].Get<int>());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_TRUE(rows.has_value());
+	ASSERT_EQUAL(0, rows.value()[0][0].Get<int>());
+	RETURN_TEST(0);
 }
 
 int isolation_default() {
-	const std::string fn_name = "isolation_default";
 	TestMemoryDatabase db;
 	db.Connect();
 	auto tx_result = db.BeginTransaction(IsolationLevel::Default);
-	ASSERT_TRUE(fn_name, tx_result.has_value());
+	ASSERT_TRUE(tx_result.has_value());
 	auto tx = std::move(*tx_result);
 	tx.Commit();
-	RETURN_TEST(fn_name, 0);
+	RETURN_TEST(0);
 }
 
 int base_exception_becomes_transaction_error() {
-	const std::string fn_name = "base_exception_becomes_transaction_error";
 	ThrowingBaseExceptionDatabase db;
 	auto result = db.BeginTransaction();
-	ASSERT_FALSE(fn_name, result.has_value());
-	ASSERT_TRUE(fn_name, result.error() != nullptr);
-	ASSERT_TRUE(fn_name, std::string{result.error()->what()}.find("base begin failure") != std::string::npos);
-	RETURN_TEST(fn_name, 0);
+	ASSERT_FALSE(result.has_value());
+	ASSERT_TRUE(result.error() != nullptr);
+	ASSERT_CONTAINS(std::string{result.error()->what()}, "base begin failure");
+	RETURN_TEST(0);
 }
 
 int isolation_serializable() {
-	const std::string fn_name = "isolation_serializable";
 	TestMemoryDatabase db;
 	db.Connect();
 	auto tx_result = db.BeginTransaction(IsolationLevel::Serializable);
-	ASSERT_TRUE(fn_name, tx_result.has_value());
+	ASSERT_TRUE(tx_result.has_value());
 	auto tx = std::move(*tx_result);
 	tx.Commit();
-	RETURN_TEST(fn_name, 0);
+	RETURN_TEST(0);
 }
 
 int isolation_repeatable_read() {
-	const std::string fn_name = "isolation_repeatable_read";
 	TestMemoryDatabase db;
 	db.Connect();
 	auto tx_result = db.BeginTransaction(IsolationLevel::RepeatableRead);
-	ASSERT_TRUE(fn_name, tx_result.has_value());
+	ASSERT_TRUE(tx_result.has_value());
 	auto tx = std::move(*tx_result);
 	tx.Commit();
-	RETURN_TEST(fn_name, 0);
+	RETURN_TEST(0);
 }
 
 int concurrent_multiple_connections() {
-	const std::string fn_name = "concurrent_multiple_connections";
 	constexpr int num_threads = 6;
 	constexpr int inserts_per_thread = 40;
 	constexpr int max_attempts = 80;
@@ -598,7 +563,7 @@ int concurrent_multiple_connections() {
 	std::filesystem::remove(db_path, ec);
 	{
 		TestFileDatabase setup(db_path);
-		ASSERT_TRUE(fn_name, setup.Connect());
+		ASSERT_TRUE(setup.Connect());
 		setup.SilentQuery("DELETE FROM concurrent;");
 	}
 
@@ -629,26 +594,25 @@ int concurrent_multiple_connections() {
 
 	for (auto& th : threads)
 		th.join();
-	ASSERT_EQUAL(fn_name, 0, failures.load());
+	ASSERT_EQUAL(0, failures.load());
 	{
 		TestFileDatabase check_db(db_path);
-		ASSERT_TRUE(fn_name, check_db.Connect());
+		ASSERT_TRUE(check_db.Connect());
 		auto rows = check_db.ExecuteSTMT("count_concurrent");
-		ASSERT_TRUE(fn_name, rows.has_value());
-		ASSERT_EQUAL(fn_name, num_threads * inserts_per_thread, rows.value()[0][0].Get<int>());
+		ASSERT_TRUE(rows.has_value());
+		ASSERT_EQUAL(num_threads * inserts_per_thread, rows.value()[0][0].Get<int>());
 		check_db.Disconnect();
 	}
 
 	std::filesystem::remove(db_path, ec);
-	RETURN_TEST(fn_name, 0);
+	RETURN_TEST(0);
 }
 
 int concurrent_shared_connection() {
-	const std::string fn_name = "concurrent_shared_connection";
 	constexpr int num_threads = 6;
 	constexpr int inserts_per_thread = 40;
 	TestMemoryDatabase db;
-	ASSERT_TRUE(fn_name, db.Connect());
+	ASSERT_TRUE(db.Connect());
 	std::atomic<int> failures{};
 	std::vector<std::thread> threads;
 	threads.reserve(static_cast<std::size_t>(num_threads));
@@ -663,21 +627,20 @@ int concurrent_shared_connection() {
 
 	for (auto& th : threads)
 		th.join();
-	ASSERT_EQUAL(fn_name, 0, failures.load());
+	ASSERT_EQUAL(0, failures.load());
 	auto rows = db.ExecuteSTMT("count_concurrent");
-	ASSERT_TRUE(fn_name, rows.has_value());
-	ASSERT_EQUAL(fn_name, num_threads * inserts_per_thread, rows.value()[0][0].Get<int>());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_TRUE(rows.has_value());
+	ASSERT_EQUAL(num_threads * inserts_per_thread, rows.value()[0][0].Get<int>());
+	RETURN_TEST(0);
 }
 
 int transaction_serializes_shared_connection() {
-	const std::string fn_name = "transaction_serializes_shared_connection";
 	TestMemoryDatabase db;
-	ASSERT_TRUE(fn_name, db.Connect());
+	ASSERT_TRUE(db.Connect());
 	auto tx_result = db.BeginTransaction();
-	ASSERT_TRUE(fn_name, tx_result.has_value());
+	ASSERT_TRUE(tx_result.has_value());
 	auto tx = std::move(*tx_result);
-	ASSERT_TRUE(fn_name, db.SilentQuery("INSERT INTO concurrent (value) VALUES (1);"));
+	ASSERT_TRUE(db.SilentQuery("INSERT INTO concurrent (value) VALUES (1);"));
 	std::promise<void> started;
 	auto started_signal = started.get_future();
 	auto worker = std::async(std::launch::async, [&db, started = std::move(started)]() mutable {
@@ -685,136 +648,132 @@ int transaction_serializes_shared_connection() {
 		return db.SilentQuery("INSERT INTO concurrent (value) VALUES (2);");
 	});
 	started_signal.wait();
-	ASSERT_TRUE(fn_name, worker.wait_for(std::chrono::milliseconds(50)) == std::future_status::timeout);
+	ASSERT_TRUE(worker.wait_for(std::chrono::milliseconds(50)) == std::future_status::timeout);
 	tx.Rollback();
-	ASSERT_TRUE(fn_name, worker.get());
+	ASSERT_TRUE(worker.get());
 	auto rows = db.Query("SELECT value FROM concurrent;");
-	ASSERT_TRUE(fn_name, rows.has_value());
-	ASSERT_EQUAL(fn_name, 1, rows.value().Count());
-	ASSERT_EQUAL(fn_name, 2, rows.value()[0][0].Get<int>());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_TRUE(rows.has_value());
+	ASSERT_EQUAL(1, rows.value().Count());
+	ASSERT_EQUAL(2, rows.value()[0][0].Get<int>());
+	RETURN_TEST(0);
 }
 
 int connected_database_move() {
-	const std::string fn_name = "connected_database_move";
 	std::unique_ptr<TestMemoryDatabase> moved;
 	{
 		TestMemoryDatabase source;
-		ASSERT_TRUE(fn_name, source.Connect());
+		ASSERT_TRUE(source.Connect());
 		moved = std::make_unique<TestMemoryDatabase>(std::move(source));
 	}
 
-	ASSERT_TRUE(fn_name, moved->IsConnected());
-	ASSERT_TRUE(fn_name, moved->Query("SELECT 1;").has_value());
+	ASSERT_TRUE(moved->IsConnected());
+	ASSERT_TRUE(moved->Query("SELECT 1;").has_value());
 	TestMemoryDatabase reassigned;
 	{
 		TestMemoryDatabase source;
-		ASSERT_TRUE(fn_name, source.Connect());
+		ASSERT_TRUE(source.Connect());
 		reassigned = std::move(source);
 	}
 
-	ASSERT_TRUE(fn_name, reassigned.IsConnected());
-	ASSERT_TRUE(fn_name, reassigned.Query("SELECT 1;").has_value());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_TRUE(reassigned.IsConnected());
+	ASSERT_TRUE(reassigned.Query("SELECT 1;").has_value());
+	RETURN_TEST(0);
 }
 
 int telemetry_tracks_sqlite_operations_and_survives_database() {
-	const std::string fn_name = "telemetry_tracks_sqlite_operations_and_survives_database";
 	StormByte::Safe::Shared<StormByte::Database::Telemetry> retained;
 	{
 		TestMemoryDatabase db;
 		retained = db.Telemetry();
-		ASSERT_TRUE(fn_name, retained != nullptr);
-		ASSERT_TRUE(fn_name, dynamic_cast<StormByte::Database::SQLite::Telemetry*>(retained.get()) != nullptr);
-		ASSERT_TRUE(fn_name, db.Connect());
-		ASSERT_TRUE(fn_name, db.Query("SELECT 1;").has_value());
-		ASSERT_FALSE(fn_name, db.Query("SELEC 1;").has_value());
-		ASSERT_TRUE(fn_name, db.ExecuteSTMT("select_users").has_value());
-		ASSERT_FALSE(fn_name, db.ExecuteSTMT("missing_telemetry_statement").has_value());
-		ASSERT_FALSE(fn_name, db.SilentQuery("INSERT INTO users (name, email) VALUES ('Duplicate', 'alice@example.com');"));
+		ASSERT_TRUE(retained != nullptr);
+		ASSERT_TRUE(dynamic_cast<StormByte::Database::SQLite::Telemetry*>(retained.get()) != nullptr);
+		ASSERT_TRUE(db.Connect());
+		ASSERT_TRUE(db.Query("SELECT 1;").has_value());
+		ASSERT_FALSE(db.Query("SELEC 1;").has_value());
+		ASSERT_TRUE(db.ExecuteSTMT("select_users").has_value());
+		ASSERT_FALSE(db.ExecuteSTMT("missing_telemetry_statement").has_value());
+		ASSERT_FALSE(db.SilentQuery("INSERT INTO users (name, email) VALUES ('Duplicate', 'alice@example.com');"));
 		auto transaction = db.BeginTransaction();
-		ASSERT_TRUE(fn_name, transaction.has_value());
+		ASSERT_TRUE(transaction.has_value());
 		transaction->Rollback();
 		auto committed_transaction = db.BeginTransaction();
-		ASSERT_TRUE(fn_name, committed_transaction.has_value());
+		ASSERT_TRUE(committed_transaction.has_value());
 		committed_transaction->Commit();
 		db.Disconnect();
 	}
 
 	const auto* telemetry = dynamic_cast<const StormByte::Database::SQLite::Telemetry*>(retained.get());
-	ASSERT_TRUE(fn_name, telemetry != nullptr);
-	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::Connect).Successes);
-	ASSERT_EQUAL(fn_name, std::uint64_t{2}, telemetry->Metrics(StormByte::Database::Operation::Disconnect).Successes);
+	ASSERT_TRUE(telemetry != nullptr);
+	ASSERT_EQUAL(std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::Connect).Successes);
+	ASSERT_EQUAL(std::uint64_t{2}, telemetry->Metrics(StormByte::Database::Operation::Disconnect).Successes);
 	const auto query = telemetry->Metrics(StormByte::Database::Operation::Query);
-	ASSERT_EQUAL(fn_name, std::uint64_t{2}, query.Attempts);
-	ASSERT_EQUAL(fn_name, std::uint64_t{1}, query.Successes);
-	ASSERT_EQUAL(fn_name, std::uint64_t{1}, query.Failures);
-	ASSERT_TRUE(fn_name, query.MinimumNanoseconds <= query.MeanNanoseconds());
-	ASSERT_TRUE(fn_name, query.MeanNanoseconds() <= query.MaximumNanoseconds);
-	ASSERT_EQUAL(fn_name, std::uint64_t{3}, telemetry->RowsReturned());
-	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::PreparedStatement).Failures);
-	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::PreparedStatement).Successes);
+	ASSERT_EQUAL(std::uint64_t{2}, query.Attempts);
+	ASSERT_EQUAL(std::uint64_t{1}, query.Successes);
+	ASSERT_EQUAL(std::uint64_t{1}, query.Failures);
+	ASSERT_TRUE(query.MinimumNanoseconds <= query.MeanNanoseconds());
+	ASSERT_TRUE(query.MeanNanoseconds() <= query.MaximumNanoseconds);
+	ASSERT_EQUAL(std::uint64_t{3}, telemetry->RowsReturned());
+	ASSERT_EQUAL(std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::PreparedStatement).Failures);
+	ASSERT_EQUAL(std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::PreparedStatement).Successes);
 	const auto prepare_metrics = telemetry->Metrics(StormByte::Database::Operation::PrepareStatement);
-	ASSERT_TRUE(fn_name, prepare_metrics.Attempts > 0);
-	ASSERT_EQUAL(fn_name, prepare_metrics.Attempts, prepare_metrics.Successes);
-	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::SilentQuery).Failures);
-	ASSERT_EQUAL(fn_name, std::uint64_t{2}, telemetry->Metrics(StormByte::Database::Operation::BeginTransaction).Successes);
-	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::CommitTransaction).Successes);
-	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::RollbackTransaction).Successes);
-	ASSERT_EQUAL(fn_name, std::uint64_t{1}, telemetry->ConstraintErrors());
-	ASSERT_TRUE(fn_name, static_cast<std::string>(*retained).find("SQLite{") != std::string::npos);
-	RETURN_TEST(fn_name, 0);
+	ASSERT_TRUE(prepare_metrics.Attempts > 0);
+	ASSERT_EQUAL(prepare_metrics.Attempts, prepare_metrics.Successes);
+	ASSERT_EQUAL(std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::SilentQuery).Failures);
+	ASSERT_EQUAL(std::uint64_t{2}, telemetry->Metrics(StormByte::Database::Operation::BeginTransaction).Successes);
+	ASSERT_EQUAL(std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::CommitTransaction).Successes);
+	ASSERT_EQUAL(std::uint64_t{1}, telemetry->Metrics(StormByte::Database::Operation::RollbackTransaction).Successes);
+	ASSERT_EQUAL(std::uint64_t{1}, telemetry->ConstraintErrors());
+	ASSERT_CONTAINS(static_cast<std::string>(*retained), "SQLite{");
+	RETURN_TEST(0);
 }
 
 int prepared_registry_preserves_unique_statements() {
-	constexpr std::string_view fn_name = "prepared_registry_preserves_unique_statements";
 	TestMemoryDatabase db;
-	ASSERT_TRUE(fn_name, db.Connect());
+	ASSERT_TRUE(db.Connect());
 	const std::string name(512, 's');
 	db.RegisterStatement(name, "SELECT 17;");
 	db.RegisterStatement(name, "SELECT 29;");
 	const auto first = db.ExecuteSTMT(name);
-	ASSERT_TRUE(fn_name, first.has_value());
-	ASSERT_EQUAL(fn_name, 17, (*first)[0][0].Get<int>());
-	ASSERT_EQUAL(fn_name, std::uint64_t{1}, db.Telemetry()->Metrics(StormByte::Database::Operation::PrepareStatement).Failures);
+	ASSERT_TRUE(first.has_value());
+	ASSERT_EQUAL(17, (*first)[0][0].Get<int>());
+	ASSERT_EQUAL(std::uint64_t{1}, db.Telemetry()->Metrics(StormByte::Database::Operation::PrepareStatement).Failures);
 	db.Disconnect();
-	ASSERT_TRUE(fn_name, db.Connect());
-	ASSERT_TRUE(fn_name, !db.ExecuteSTMT(name));
+	ASSERT_TRUE(db.Connect());
+	ASSERT_TRUE(!db.ExecuteSTMT(name));
 	db.RegisterStatement(name, "SELECT 31;");
 	const auto replaced = db.ExecuteSTMT(name);
-	ASSERT_TRUE(fn_name, replaced.has_value());
-	ASSERT_EQUAL(fn_name, 31, (*replaced)[0][0].Get<int>());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_TRUE(replaced.has_value());
+	ASSERT_EQUAL(31, (*replaced)[0][0].Get<int>());
+	RETURN_TEST(0);
 }
 
 int embedded_nul_contract() {
-	constexpr std::string_view fn_name = "embedded_nul_contract";
 	TestMemoryDatabase db;
-	ASSERT_TRUE(fn_name, db.Connect());
+	ASSERT_TRUE(db.Connect());
 	constexpr std::string_view text{"left\0right", 10};
 	constexpr std::string_view name{"echo\0suffix", 11};
 	db.RegisterStatement("echo", "SELECT 17;");
 	db.RegisterStatement(name, "SELECT ?;");
 	const auto rows = db.ExecuteSTMT(name, StormByte::Safe::String{text});
-	ASSERT_TRUE(fn_name, rows.has_value());
-	ASSERT_TRUE(fn_name, static_cast<std::string_view>((*rows)[0][0].Get<StormByte::Safe::String>()) == text);
+	ASSERT_TRUE(rows.has_value());
+	ASSERT_TRUE(static_cast<std::string_view>((*rows)[0][0].Get<StormByte::Safe::String>()) == text);
 	const auto prefix = db.ExecuteSTMT("echo");
-	ASSERT_TRUE(fn_name, prefix.has_value());
-	ASSERT_EQUAL(fn_name, 17, (*prefix)[0][0].Get<int>());
+	ASSERT_TRUE(prefix.has_value());
+	ASSERT_EQUAL(17, (*prefix)[0][0].Get<int>());
 	const auto empty = db.ExecuteSTMT(name, std::string_view{});
-	ASSERT_TRUE(fn_name, empty.has_value());
-	ASSERT_FALSE(fn_name, (*empty)[0][0].IsNull());
-	ASSERT_TRUE(fn_name, (*empty)[0][0].Get<StormByte::Safe::String>().empty());
+	ASSERT_TRUE(empty.has_value());
+	ASSERT_FALSE((*empty)[0][0].IsNull());
+	ASSERT_TRUE((*empty)[0][0].Get<StormByte::Safe::String>().empty());
 	constexpr std::string_view invalid_sql{"SELECT 1;\0SELECT 2;", 19};
-	ASSERT_FALSE(fn_name, db.Query(invalid_sql).has_value());
-	ASSERT_FALSE(fn_name, db.SilentQuery(invalid_sql));
+	ASSERT_FALSE(db.Query(invalid_sql).has_value());
+	ASSERT_FALSE(db.SilentQuery(invalid_sql));
 	db.RegisterStatement("invalid_nul", invalid_sql);
-	ASSERT_FALSE(fn_name, db.ExecuteSTMT("invalid_nul").has_value());
+	ASSERT_FALSE(db.ExecuteSTMT("invalid_nul").has_value());
 	const std::string invalid_path{":memory:\0suffix", 15};
 	TestFileDatabase file{std::filesystem::path{invalid_path}};
-	ASSERT_FALSE(fn_name, file.Connect());
-	ASSERT_TRUE(fn_name, db.Query("SELECT 1;").has_value());
-	RETURN_TEST(fn_name, 0);
+	ASSERT_FALSE(file.Connect());
+	ASSERT_TRUE(db.Query("SELECT 1;").has_value());
+	RETURN_TEST(0);
 }
 
 int main() {

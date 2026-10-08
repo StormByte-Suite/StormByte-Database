@@ -42,6 +42,7 @@
 #include <StormByte/database/mariadb/prepared_stmt.hxx>
 #include <StormByte/database/mariadb/result_fetch.hxx>
 #include <StormByte/database/mariadb/telemetry.hxx>
+#include <StormByte/database/engine_handles.hxx>
 #include <cstdint>
 #include <cstring>
 #include <limits>
@@ -51,35 +52,29 @@
 #include <utility>
 #include <vector>
 using namespace StormByte::Database::MariaDB;
-static inline MYSQL* to_mysql_conn(struct st_mysql* c) noexcept {
-	return reinterpret_cast<MYSQL*>(c);
-}
-
-static inline MYSQL_STMT* to_mysql_stmt(struct st_mysql_stmt* s) noexcept {
-	return reinterpret_cast<MYSQL_STMT*>(s);
-}
-
-static inline struct st_mysql_stmt* to_st_mysql_stmt(MYSQL_STMT* s) noexcept {
-	return reinterpret_cast<struct st_mysql_stmt*>(s);
-}
-
-void PreparedSTMT::EnsureParamSize(std::vector<StormByte::Database::Value>& params, StormByte::Size index) {
+void PreparedSTMT::EnsureParamSize(StormByte::Safe::Vector<StormByte::Database::Value>& params, StormByte::Size index) {
 	if (index >= StormByte::Size{params.size()})
 		params.resize(static_cast<std::size_t>(index) + 1);
 }
 
-PreparedSTMT::PreparedSTMT(ConstructionKey, std::string_view name, std::string_view query, struct st_mysql* conn,
+PreparedSTMT::PreparedSTMT(ConstructionKey, std::string_view name, std::string_view query,
 		const StormByte::Safe::Shared<Logger::Log>& logger,
 		const StormByte::Safe::Shared<StormByte::Database::Telemetry>& telemetry)
-	: StormByte::Database::PreparedSTMT(name, query, logger, telemetry), m_conn(conn), m_stmt(nullptr) {
-	MYSQL* cpp_conn = to_mysql_conn(m_conn);
+	: StormByte::Database::PreparedSTMT(name, query, logger, telemetry),
+	  m_statement_handle(StormByte::Safe::Unique<StatementHandle>::MakePointer<StatementHandle>()),
+	  m_params() {}
+
+bool PreparedSTMT::Initialize() noexcept {
+	MYSQL* cpp_conn = static_cast<MYSQL*>(m_statement_handle->m_native_connection);
+	if (!cpp_conn)
+		return false;
 	MYSQL_STMT* stmt = mysql_stmt_init(cpp_conn);
 	if (!stmt) {
 		if (m_logger) {
 			*m_logger << Logger::Level::Error << "MariaDB: mysql_stmt_init returned null for query: " << Query() << std::endl;
 		}
 
-		return;
+		return false;
 	}
 
 	std::string prepq{Query()};
@@ -87,7 +82,7 @@ PreparedSTMT::PreparedSTMT(ConstructionKey, std::string_view name, std::string_v
 	if (!prepq.empty() && prepq.back() == ';') prepq.pop_back();
 	if (prepq.size() > std::numeric_limits<unsigned long>::max()) {
 		mysql_stmt_close(stmt);
-		return;
+		return false;
 	}
 	if (mysql_stmt_prepare(stmt, prepq.c_str(), static_cast<unsigned long>(prepq.size())) != 0) {
 		if (m_logger) {
@@ -97,31 +92,32 @@ PreparedSTMT::PreparedSTMT(ConstructionKey, std::string_view name, std::string_v
 		}
 
 		mysql_stmt_close(stmt);
-		return;
+		return false;
 	}
 
-	m_stmt = to_st_mysql_stmt(stmt);
+	m_statement_handle->m_native_statement = stmt;
+	return true;
 }
 
 PreparedSTMT::PreparedSTMT(PreparedSTMT&& other) noexcept:
-	StormByte::Database::PreparedSTMT(std::move(other)), m_conn(std::exchange(other.m_conn, nullptr)),
-	m_stmt(std::exchange(other.m_stmt, nullptr)), m_params(std::move(other.m_params)) {}
+	StormByte::Database::PreparedSTMT(std::move(other)),
+	m_statement_handle(std::move(other.m_statement_handle)), m_params(std::move(other.m_params)) {}
 
 PreparedSTMT::~PreparedSTMT() noexcept {
-	if (m_stmt) {
-		MYSQL_STMT* stmt = to_mysql_stmt(m_stmt);
+	MYSQL_STMT* stmt = m_statement_handle ? static_cast<MYSQL_STMT*>(m_statement_handle->m_native_statement) : nullptr;
+	if (stmt) {
 		mysql_stmt_close(stmt);
-		m_stmt = nullptr;
+		m_statement_handle->m_native_statement = nullptr;
 	}
 }
 
 PreparedSTMT& PreparedSTMT::operator=(PreparedSTMT&& other) noexcept {
 	if (this != &other) {
-		if (m_stmt)
-			mysql_stmt_close(to_mysql_stmt(m_stmt));
+		MYSQL_STMT* stmt = m_statement_handle ? static_cast<MYSQL_STMT*>(m_statement_handle->m_native_statement) : nullptr;
+		if (stmt)
+			mysql_stmt_close(stmt);
 		StormByte::Database::PreparedSTMT::operator=(std::move(other));
-		m_conn = std::exchange(other.m_conn, nullptr);
-		m_stmt = std::exchange(other.m_stmt, nullptr);
+		m_statement_handle = std::move(other.m_statement_handle);
 		m_params = std::move(other.m_params);
 	}
 	return *this;
@@ -134,17 +130,18 @@ void PreparedSTMT::Binder(StormByte::Size index, Value&& value) noexcept {
 
 void PreparedSTMT::Reset() noexcept {
 	m_params.clear();
-	if (m_stmt) {
-		mysql_stmt_reset(to_mysql_stmt(m_stmt));
+	MYSQL_STMT* stmt = m_statement_handle ? static_cast<MYSQL_STMT*>(m_statement_handle->m_native_statement) : nullptr;
+	if (stmt) {
+		mysql_stmt_reset(stmt);
 	}
 }
 
 StormByte::Database::ExpectedRows PreparedSTMT::DoExecute() {
-	if (!m_conn || !m_stmt) {
+	if (!m_statement_handle || !m_statement_handle->m_native_connection || !m_statement_handle->m_native_statement) {
 		return Unexpected<ExecuteError>("No DB connection or statement");
 	}
 
-	MYSQL_STMT* stmt = to_mysql_stmt(m_stmt);
+	MYSQL_STMT* stmt = static_cast<MYSQL_STMT*>(m_statement_handle->m_native_statement);
 	auto record_statement_error = [this, stmt]() {
 		if (auto* mariadb_telemetry = dynamic_cast<Telemetry*>(m_telemetry.get()))
 			mariadb_telemetry->RecordMariaDBError(mysql_stmt_errno(stmt));
@@ -160,7 +157,7 @@ StormByte::Database::ExpectedRows PreparedSTMT::DoExecute() {
 	std::vector<double> dbl_buf(m_params.size());
 	std::vector<char> bool_buf(m_params.size());
 	std::vector<std::string> str_buf(m_params.size());
-	std::vector<StormByte::BinaryData> bin_buf(m_params.size());
+	std::vector<StormByte::Safe::Binary> bin_buf(m_params.size());
 	std::vector<char> empty_blob_buffer(m_params.size());
 	std::vector<unsigned long> str_len(m_params.size());
 	std::vector<my_bool> is_null(m_params.size());
@@ -244,7 +241,7 @@ StormByte::Database::ExpectedRows PreparedSTMT::DoExecute() {
 			}
 
 			case StormByte::Database::Value::Type::Blob: {
-				bin_buf[i] = p.Get<StormByte::BinaryData>();
+				bin_buf[i] = p.Get<StormByte::Safe::Binary>();
 				if (bin_buf[i].size() > StormByte::ByteSize{std::numeric_limits<unsigned long>::max()})
 					return Unexpected<ExecuteError>("MariaDB bind blob exceeds supported length");
 				bind_in[i].buffer_type = MYSQL_TYPE_BLOB;
@@ -279,7 +276,7 @@ StormByte::Database::ExpectedRows PreparedSTMT::DoExecute() {
 		record_statement_error();
 		return Unexpected<ExecuteError>(mysql_stmt_error(stmt) ? mysql_stmt_error(stmt) : "Unknown MySQL stmt error");
 	}
-	if (const unsigned int warnings = mysql_warning_count(to_mysql_conn(m_conn)); warnings > 0) {
+	if (const unsigned int warnings = mysql_warning_count(static_cast<MYSQL*>(m_statement_handle->m_native_connection)); warnings > 0) {
 		if (auto* mariadb_telemetry = dynamic_cast<Telemetry*>(m_telemetry.get()))
 			mariadb_telemetry->RecordMariaDBWarnings(warnings);
 	}
@@ -454,7 +451,7 @@ StormByte::Database::ExpectedRows PreparedSTMT::DoExecute() {
 					// 63 = binary charset; otherwise treat as text (TEXT/VARCHAR)
 					const bool is_binary = f && f->charsetnr == 63;
 					if (is_binary) {
-						StormByte::BinaryData blob{
+						StormByte::Safe::Binary blob{
 							reinterpret_cast<const std::byte*>(out_str[i].data()),
 							StormByte::ByteSize{llen}
 						};

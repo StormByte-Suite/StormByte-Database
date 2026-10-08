@@ -42,6 +42,7 @@
 #include <StormByte/database/postgres/postgres.hxx>
 #include <StormByte/database/postgres/result_fetch.hxx>
 #include <StormByte/database/postgres/prepared_stmt.hxx>
+#include <StormByte/database/engine_handles.hxx>
 #include <libpq-fe.h>
 #include <cctype>
 #include <limits>
@@ -65,14 +66,15 @@ namespace {
 Postgres::Postgres(std::string_view host, std::string_view user, std::string_view password,
 				std::string_view db_name, const StormByte::Safe::Shared<Logger::Log>& logger)
 	: Database(logger), m_host(host), m_user(user), m_password(password),
-	m_dbname(db_name), m_conn(nullptr) {
+	m_dbname(db_name),
+	m_connection_handle(StormByte::Safe::Unique<ConnectionHandle>::MakePointer<ConnectionHandle>()) {
 	Telemetry(StormByte::Safe::Shared<StormByte::Database::Telemetry>::MakePointer<StormByte::Database::Postgres::Telemetry>());
 }
 
 Postgres::Postgres(Postgres&& db) noexcept
 	: Database(std::move(db)), m_host(std::move(db.m_host)), m_user(std::move(db.m_user)),
 	m_password(std::move(db.m_password)), m_dbname(std::move(db.m_dbname)),
-	m_conn(std::exchange(db.m_conn, nullptr)) {
+	m_connection_handle(std::move(db.m_connection_handle)) {
 	db.m_connected = false;
 }
 
@@ -84,7 +86,7 @@ Postgres& Postgres::operator=(Postgres&& db) noexcept {
 		m_user = std::move(db.m_user);
 		m_password = std::move(db.m_password);
 		m_dbname = std::move(db.m_dbname);
-		m_conn = std::exchange(db.m_conn, nullptr);
+		m_connection_handle = std::move(db.m_connection_handle);
 		db.m_connected = false;
 	}
 
@@ -148,11 +150,11 @@ bool Postgres::DoConnect() noexcept {
 		}
 
 		PQfinish(conn);
-		m_conn = nullptr;
+		m_connection_handle->m_native_connection = nullptr;
 		return false;
 	}
 
-	m_conn = conn;
+	m_connection_handle->m_native_connection = conn;
 	if (m_logger)
 		PQsetNoticeProcessor(conn, PostgresNoticeProcessor, m_logger.get());
 	if (m_logger)
@@ -165,18 +167,20 @@ void Postgres::DoPreDisconnect() noexcept {
 }
 
 void Postgres::DoDisconnect() noexcept {
-	if (m_conn) {
-		PQfinish(static_cast<PGconn*>(m_conn));
-		m_conn = nullptr;
+	PGconn* conn = static_cast<PGconn*>(m_connection_handle->m_native_connection);
+	if (conn) {
+		PQfinish(conn);
+		m_connection_handle->m_native_connection = nullptr;
 	}
 }
 
 StormByte::Database::ExpectedRows Postgres::Query(std::string_view query) noexcept {
 	auto telemetry = TrackOperation(Operation::Query);
-	std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
+	OperationGuard lock{*this};
 	if (m_logger)
 		*m_logger << Logger::Level::Debug << "Executing query: " << query << std::endl;
-	if (!m_connected || !m_conn) {
+	PGconn* conn = static_cast<PGconn*>(m_connection_handle->m_native_connection);
+	if (!m_connected || !conn) {
 		RecordBackendEvent(BackendEvent::Connection);
 		telemetry.Complete(false);
 		return Unexpected<ExecuteError>("Database not connected");
@@ -186,7 +190,7 @@ StormByte::Database::ExpectedRows Postgres::Query(std::string_view query) noexce
 		return Unexpected<ExecuteError>("Query contains an embedded NUL character");
 	}
 	const std::string query_text{query};
-	PGresult* res = PQexec(static_cast<PGconn*>(m_conn), query_text.c_str());
+	PGresult* res = PQexec(conn, query_text.c_str());
 	if (!res) {
 		RecordBackendEvent(BackendEvent::Connection);
 		telemetry.Complete(false);
@@ -197,8 +201,8 @@ StormByte::Database::ExpectedRows Postgres::Query(std::string_view query) noexce
 		const char* sql_state = PQresultErrorField(res, PG_DIAG_SQLSTATE);
 		if (auto* postgres_telemetry = dynamic_cast<class Telemetry*>(m_telemetry.get()))
 			postgres_telemetry->RecordSqlState(sql_state ? std::string_view{sql_state} : std::string_view{});
-		std::string err = PQerrorMessage(static_cast<PGconn*>(m_conn))
-						? PQerrorMessage(static_cast<PGconn*>(m_conn))
+		std::string err = PQerrorMessage(conn)
+						? PQerrorMessage(conn)
 						: "Unknown Postgres error";
 		PQclear(res);
 		return Unexpected<ExecuteError>(err);
@@ -212,24 +216,25 @@ StormByte::Database::ExpectedRows Postgres::Query(std::string_view query) noexce
 
 bool Postgres::SilentQuery(std::string_view query) noexcept {
 	auto telemetry = TrackOperation(Operation::SilentQuery);
-	std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
+	OperationGuard lock{*this};
 	const bool result = DoSilentQuery(query);
 	telemetry.Complete(result);
 	return result;
 }
 
 bool Postgres::DoSilentQuery(std::string_view query) noexcept {
-	std::lock_guard<std::recursive_mutex> lock(*m_operation_mutex);
+	OperationGuard lock{*this};
 	if (m_logger)
 		*m_logger << Logger::Level::Debug << "Executing silent query: " << query << std::endl;
-	if (!m_connected || !m_conn) {
+	PGconn* conn = static_cast<PGconn*>(m_connection_handle->m_native_connection);
+	if (!m_connected || !conn) {
 		RecordBackendEvent(BackendEvent::Connection);
 		return false;
 	}
 	if (query.find('\0') != std::string_view::npos)
 		return false;
 	const std::string query_text{query};
-	PGresult* res = PQexec(static_cast<PGconn*>(m_conn), query_text.c_str());
+	PGresult* res = PQexec(conn, query_text.c_str());
 	if (!res) {
 		RecordBackendEvent(BackendEvent::Connection);
 		return false;
@@ -242,8 +247,8 @@ bool Postgres::DoSilentQuery(std::string_view query) noexcept {
 		if (m_logger) {
 			*m_logger << Logger::Level::Error
 					<< "Postgres SilentQuery error: "
-					<< (PQerrorMessage(static_cast<PGconn*>(m_conn))
-							? PQerrorMessage(static_cast<PGconn*>(m_conn))
+					<< (PQerrorMessage(conn)
+							? PQerrorMessage(conn)
 							: "Unknown error")
 					<< std::endl;
 		}
@@ -258,9 +263,9 @@ bool Postgres::DoSilentQuery(std::string_view query) noexcept {
 
 StormByte::Safe::Unique<StormByte::Database::PreparedSTMT>
 Postgres::CreatePreparedSTMT(std::string_view name, std::string_view query) noexcept {
-	if (!m_conn)
+	PGconn* conn = static_cast<PGconn*>(m_connection_handle->m_native_connection);
+	if (!conn)
 		return nullptr;
-	PGconn* conn = static_cast<PGconn*>(m_conn);
 	if (name.find('\0') != std::string_view::npos || query.find('\0') != std::string_view::npos)
 		return nullptr;
 	const std::string name_copy{name};
@@ -297,7 +302,7 @@ Postgres::CreatePreparedSTMT(std::string_view name, std::string_view query) noex
 	PQclear(res);
 	StormByte::Safe::Unique<PreparedSTMT> stmt = StormByte::Safe::Unique<PreparedSTMT>::MakePointer<PreparedSTMT>(
 		PreparedSTMT::ConstructionKey{}, name, query, m_logger, m_telemetry);
-	stmt->m_conn = m_conn;
+	stmt->m_statement_handle->m_native_connection = conn;
 	return stmt;
 }
 

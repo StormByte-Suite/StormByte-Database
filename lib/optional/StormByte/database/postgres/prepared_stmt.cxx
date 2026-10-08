@@ -42,6 +42,7 @@
 #include <StormByte/database/postgres/prepared_stmt.hxx>
 #include <StormByte/database/postgres/result_fetch.hxx>
 #include <StormByte/database/postgres/telemetry.hxx>
+#include <StormByte/database/engine_handles.hxx>
 #include <libpq-fe.h>
 #include <limits>
 #include <string_view>
@@ -52,10 +53,11 @@ using namespace StormByte::Database::Postgres;
 PreparedSTMT::PreparedSTMT(ConstructionKey, std::string_view name, std::string_view query,
 		const StormByte::Safe::Shared<Logger::Log>& logger,
 		const StormByte::Safe::Shared<StormByte::Database::Telemetry>& telemetry)
-	: StormByte::Database::PreparedSTMT(name, query, logger, telemetry), m_conn(nullptr), m_stmt_name(name) {}
+	: StormByte::Database::PreparedSTMT(name, query, logger, telemetry),
+	  m_statement_handle(StormByte::Safe::Unique<StatementHandle>::MakePointer<StatementHandle>()), m_stmt_name(name) {}
 
 PreparedSTMT::PreparedSTMT(PreparedSTMT&& other) noexcept:
-	StormByte::Database::PreparedSTMT(std::move(other)), m_conn(std::exchange(other.m_conn, nullptr)),
+	StormByte::Database::PreparedSTMT(std::move(other)), m_statement_handle(std::move(other.m_statement_handle)),
 	m_stmt_name(std::move(other.m_stmt_name)), m_params(std::move(other.m_params)) {}
 
 PreparedSTMT::~PreparedSTMT() noexcept = default;
@@ -63,7 +65,7 @@ PreparedSTMT::~PreparedSTMT() noexcept = default;
 PreparedSTMT& PreparedSTMT::operator=(PreparedSTMT&& other) noexcept {
 	if (this != &other) {
 		StormByte::Database::PreparedSTMT::operator=(std::move(other));
-		m_conn = std::exchange(other.m_conn, nullptr);
+		m_statement_handle = std::move(other.m_statement_handle);
 		m_stmt_name = std::move(other.m_stmt_name);
 		m_params = std::move(other.m_params);
 	}
@@ -84,7 +86,8 @@ void PreparedSTMT::Reset() noexcept {
 }
 
 StormByte::Database::ExpectedRows PreparedSTMT::DoExecute() {
-	if (!m_conn)
+	PGconn* conn = m_statement_handle ? static_cast<PGconn*>(m_statement_handle->m_native_connection) : nullptr;
+	if (!conn)
 		return Unexpected<ExecuteError>("No connection available for prepared statement");
 	const StormByte::Size parameter_count{m_params.size()};
 	if (parameter_count > StormByte::Size{std::numeric_limits<int>::max()})
@@ -95,7 +98,7 @@ StormByte::Database::ExpectedRows PreparedSTMT::DoExecute() {
 	std::vector<int> lengths(parameter_count_stl);
 	std::vector<int> formats(parameter_count_stl);
 	std::vector<std::string> string_storage(parameter_count_stl);
-	std::vector<StormByte::BinaryData> blob_storage(parameter_count_stl);
+	std::vector<StormByte::Safe::Binary> blob_storage(parameter_count_stl);
 	for (StormByte::Size index{}; index < parameter_count; ++index) {
 		const std::size_t stl_index = static_cast<std::size_t>(index);
 		const Value& value = m_params[stl_index];
@@ -129,7 +132,7 @@ StormByte::Database::ExpectedRows PreparedSTMT::DoExecute() {
 				break;
 			}
 			case Value::Type::Blob: {
-				blob_storage[stl_index] = value.Get<StormByte::BinaryData>();
+				blob_storage[stl_index] = value.Get<StormByte::Safe::Binary>();
 				if (blob_storage[stl_index].size() > StormByte::ByteSize{std::numeric_limits<int>::max()})
 					return Unexpected<ExecuteError>("PostgreSQL bind blob exceeds supported length");
 				params[stl_index] = blob_storage[stl_index].empty()
@@ -148,7 +151,7 @@ StormByte::Database::ExpectedRows PreparedSTMT::DoExecute() {
 		params[stl_index] = string_storage[stl_index].c_str();
 	}
 
-	PGresult* res = PQexecPrepared(m_conn, m_stmt_name.Bytes(), parameter_count_int, params.data(), lengths.data(), formats.data(), 0);
+	PGresult* res = PQexecPrepared(conn, m_stmt_name.Bytes(), parameter_count_int, params.data(), lengths.data(), formats.data(), 0);
 	if (!res) {
 		RecordBackendEvent(BackendEvent::Connection);
 		return Unexpected<ExecuteError>("Null PGresult from PQexecPrepared");
@@ -159,7 +162,7 @@ StormByte::Database::ExpectedRows PreparedSTMT::DoExecute() {
 		const char* sql_state = PQresultErrorField(res, PG_DIAG_SQLSTATE);
 		if (auto* postgres_telemetry = dynamic_cast<Telemetry*>(m_telemetry.get()))
 			postgres_telemetry->RecordSqlState(sql_state ? std::string_view{sql_state} : std::string_view{});
-		std::string err = PQerrorMessage(m_conn) ? PQerrorMessage(m_conn) : "Unknown Postgres error";
+		std::string err = PQerrorMessage(conn) ? PQerrorMessage(conn) : "Unknown Postgres error";
 		PQclear(res);
 		return Unexpected<ExecuteError>(err);
 	}

@@ -83,7 +83,7 @@ StormByte::Database::ExpectedRows StormByte::Database::SQLite::StepResults(sqlit
 				case SQLITE_BLOB: {
 					const auto* blob_data = reinterpret_cast<const std::byte*>(sqlite3_column_blob(stmt, column_index));
 					const int blob_size = sqlite3_column_bytes(stmt, column_index);
-					StormByte::BinaryData blob{blob_data, StormByte::ByteSize{blob_size}};
+					StormByte::Safe::Binary blob{blob_data, StormByte::ByteSize{blob_size}};
 					row.add(name, Value{std::move(blob)});
 					break;
 				}

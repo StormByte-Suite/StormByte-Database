@@ -43,29 +43,21 @@
 #include <StormByte/database/row.hxx>
 
 #include <algorithm>
-#include <optional>
-#include <string>
-#include <unordered_map>
-#include <vector>
 
 using namespace StormByte::Database;
-
-struct Row::Columns {
-	std::vector<NamedValue> values;
-	mutable std::optional<std::unordered_map<std::string, StormByte::Size>> name_index;
-};
 
 Row::Row() noexcept = default;
 
 Row::Row(const Row& other)
-	: m_columns(other.m_columns ? std::make_unique<Columns>(*other.m_columns) : nullptr) {}
+	: m_columns(other.m_columns), m_name_index(other.m_name_index) {}
 
 Row::Row(Row&& other) noexcept = default;
 
 Row::~Row() noexcept = default;
 Row& Row::operator=(const Row& other) {
 	if (this != &other)
-		m_columns = other.m_columns ? std::make_unique<Columns>(*other.m_columns) : nullptr;
+		m_columns = other.m_columns;
+	m_name_index = other.m_name_index;
 
 	return *this;
 }
@@ -73,9 +65,7 @@ Row& Row::operator=(const Row& other) {
 Row& Row::operator=(Row&& other) noexcept = default;
 
 bool Row::operator==(const Row& other) const {
-	if (!m_columns || !other.m_columns)
-		return empty() && other.empty();
-	return m_columns->values == other.m_columns->values;
+	return m_columns == other.m_columns;
 }
 
 bool Row::operator!=(const Row& other) const {
@@ -83,19 +73,19 @@ bool Row::operator!=(const Row& other) const {
 }
 
 Row::iterator Row::begin() noexcept {
-	return m_columns && !m_columns->values.empty() ? m_columns->values.data() : nullptr;
+	return m_columns.empty() ? nullptr : m_columns.data();
 }
 
 Row::const_iterator Row::begin() const noexcept {
-	return m_columns && !m_columns->values.empty() ? m_columns->values.data() : nullptr;
+	return m_columns.empty() ? nullptr : m_columns.data();
 }
 
 Row::iterator Row::end() noexcept {
-	return m_columns && !m_columns->values.empty() ? m_columns->values.data() + m_columns->values.size() : nullptr;
+	return m_columns.empty() ? nullptr : m_columns.data() + static_cast<std::size_t>(m_columns.size());
 }
 
 Row::const_iterator Row::end() const noexcept {
-	return m_columns && !m_columns->values.empty() ? m_columns->values.data() + m_columns->values.size() : nullptr;
+	return m_columns.empty() ? nullptr : m_columns.data() + static_cast<std::size_t>(m_columns.size());
 }
 
 Row::const_iterator Row::cbegin() const noexcept {
@@ -131,29 +121,25 @@ Row::const_reverse_iterator Row::crend() const noexcept {
 }
 
 StormByte::Size Row::size() const noexcept {
-	return StormByte::Size{m_columns ? m_columns->values.size() : 0};
+	return StormByte::Size{m_columns.size()};
 }
 
 bool Row::empty() const noexcept {
-	return !m_columns || m_columns->values.empty();
+	return m_columns.empty();
 }
 
 void Row::add(std::string_view columnName, Value&& value) {
-	if (!m_columns)
-		m_columns = std::make_unique<Columns>();
-	m_columns->values.emplace_back(columnName, std::move(value));
-	m_columns->name_index.reset();
+	m_columns.emplace_back(columnName, std::move(value));
+	m_name_index.reset();
 }
 
 void Row::add(NamedValue value) {
-	if (!m_columns)
-		m_columns = std::make_unique<Columns>();
-	m_columns->values.emplace_back(std::move(value));
-	m_columns->name_index.reset();
+	m_columns.emplace_back(std::move(value));
+	m_name_index.reset();
 }
 
 bool Row::has_item(const NamedValue& value) const {
-	return m_columns && std::find(m_columns->values.begin(), m_columns->values.end(), value) != m_columns->values.end();
+	return std::find(m_columns.begin(), m_columns.end(), value) != m_columns.end();
 }
 
 StormByte::Size Row::Count() const noexcept {
@@ -161,27 +147,26 @@ StormByte::Size Row::Count() const noexcept {
 }
 
 void Row::BuildNameIndex() const {
-	if (!m_columns || m_columns->name_index)
+	if (m_columns.empty() || m_name_index)
 		return;
-	std::unordered_map<std::string, StormByte::Size> index;
-	index.reserve(m_columns->values.size());
+	StormByte::Safe::Map<StormByte::Safe::String, StormByte::Size> index;
 	StormByte::Size i{};
-	for (const auto& value : m_columns->values) {
-		index.emplace(value.Name(), i);
+	for (const auto& value : m_columns) {
+		index.try_emplace(StormByte::Safe::String{value.Name()}, i);
 		++i;
 	}
 
-	m_columns->name_index = std::move(index);
+	m_name_index = std::move(index);
 }
 
 const Value& Row::operator[](std::string_view columnName) const & {
-	if (!m_columns)
+	if (m_columns.empty())
 		throw ColumnNotFound(columnName);
 	BuildNameIndex();
-	auto it = m_columns->name_index->find(std::string{columnName});
-	if (it == m_columns->name_index->end())
+	auto it = m_name_index->find(StormByte::Safe::String{columnName});
+	if (it == m_name_index->end())
 		throw ColumnNotFound(columnName);
-	return m_columns->values[static_cast<std::size_t>(it->second)];
+	return m_columns[static_cast<std::size_t>(it->second)];
 }
 
 Value& Row::operator[](std::string_view columnName) & {
@@ -189,19 +174,19 @@ Value& Row::operator[](std::string_view columnName) & {
 }
 
 Value Row::operator[](std::string_view columnName) && {
-	if (!m_columns)
+	if (m_columns.empty())
 		throw ColumnNotFound(columnName);
 	BuildNameIndex();
-	auto it = m_columns->name_index->find(std::string{columnName});
-	if (it == m_columns->name_index->end())
+	auto it = m_name_index->find(StormByte::Safe::String{columnName});
+	if (it == m_name_index->end())
 		throw ColumnNotFound(columnName);
-	return std::move(m_columns->values[static_cast<std::size_t>(it->second)]);
+	return std::move(m_columns[static_cast<std::size_t>(it->second)]);
 }
 
 const NamedValue& Row::operator[](StormByte::Size index) const & {
-	if (!m_columns || index >= size())
+	if (index >= size())
 		throw OutOfBounds(index, size());
-	return m_columns->values[static_cast<std::size_t>(index)];
+	return m_columns[static_cast<std::size_t>(index)];
 }
 
 NamedValue& Row::operator[](StormByte::Size index) & {
@@ -209,7 +194,7 @@ NamedValue& Row::operator[](StormByte::Size index) & {
 }
 
 NamedValue Row::operator[](StormByte::Size index) && {
-	if (!m_columns || index >= size())
+	if (index >= size())
 		throw OutOfBounds(index, size());
-	return std::move(m_columns->values[static_cast<std::size_t>(index)]);
+	return std::move(m_columns[static_cast<std::size_t>(index)]);
 }

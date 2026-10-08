@@ -43,6 +43,8 @@
 
 using namespace StormByte::Database;
 
+NamedValue::NamedValue() = default;
+
 NamedValue::NamedValue(std::string_view name, const Value& value):
 	Value(value), m_name(name) {}
 

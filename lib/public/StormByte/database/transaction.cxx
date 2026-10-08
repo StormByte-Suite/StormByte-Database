@@ -44,13 +44,12 @@
 using namespace StormByte::Database;
 
 Transaction::Transaction(Database& db)
-	: m_db(&db), m_active(true), m_mutex(db.m_operation_mutex), m_lock_held(false) {
-	m_mutex->lock();
+	: m_db(&db), m_active(true), m_lock_held(false) {
+	m_db->LockOperation();
 	m_lock_held = true;
 }
 Transaction::Transaction(Transaction&& other) noexcept
-	: m_db(other.m_db), m_active(other.m_active), m_mutex(std::move(other.m_mutex)),
-	  m_lock_held(std::exchange(other.m_lock_held, false)) {
+	: m_db(other.m_db), m_active(other.m_active), m_lock_held(std::exchange(other.m_lock_held, false)) {
 	other.m_db = nullptr;
 	other.m_active = false;
 }
@@ -61,7 +60,6 @@ Transaction& Transaction::operator=(Transaction&& other) noexcept {
 			Rollback();
 		m_db = other.m_db;
 		m_active = other.m_active;
-		m_mutex = std::move(other.m_mutex);
 		m_lock_held = std::exchange(other.m_lock_held, false);
 		other.m_db = nullptr;
 		other.m_active = false;
@@ -77,8 +75,8 @@ Transaction::~Transaction() noexcept {
 }
 
 void Transaction::ReleaseLock() noexcept {
-	if (m_lock_held) {
-		m_mutex->unlock();
+	if (m_lock_held && m_db) {
+		m_db->UnlockOperation();
 		m_lock_held = false;
 	}
 }

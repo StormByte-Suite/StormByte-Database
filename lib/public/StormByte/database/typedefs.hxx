@@ -41,12 +41,11 @@
 
 #pragma once
 
-#include <StormByte/binary_data.hxx>
 #include <StormByte/database/exception.hxx>
 #include <StormByte/expected.hxx>
+#include <StormByte/safe/binary.hxx>
 #include <StormByte/safe/string.hxx>
-
-#include <variant>
+#include <StormByte/safe/variant.hxx>
 
 /**
  * @namespace StormByte
@@ -62,10 +61,10 @@ namespace StormByte {
 
 		/**
 		 * @typedef ValuesVariant
-		 * @brief Column alternatives. `std::monostate` is SQL NULL.
+		 * @brief Column alternatives stored on Base's heap. Safe::Monostate is SQL NULL.
 		 */
-		using ValuesVariant = std::variant<
-			std::monostate,
+		using ValuesVariant = StormByte::Safe::Variant<
+			StormByte::Safe::Monostate,
 			int,
 			unsigned int,
 			long long int,
@@ -73,7 +72,7 @@ namespace StormByte {
 			double,
 			StormByte::Safe::String,
 			bool,
-			StormByte::BinaryData>;
+			StormByte::Safe::Binary>;
 
 		/**
 		 * @typedef ExpectedRows

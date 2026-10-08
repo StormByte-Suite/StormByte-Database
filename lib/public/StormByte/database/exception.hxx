@@ -43,10 +43,10 @@
 
 #include <StormByte/database/visibility.h>
 #include <StormByte/exception.hxx>
+#include <StormByte/safe/string.hxx>
 #include <StormByte/size.hxx>
 
 #include <format>
-#include <string>
 #include <string_view>
 #include <utility>
 
@@ -96,6 +96,14 @@ namespace StormByte {
 				 */
 				template <typename... Args>
 				Exception(StormByte::Exception::Path path, std::format_string<Args...> fmt, Args &&...args) : StormByte::Exception(path, fmt, std::forward<Args>(args)...) {}
+
+				/**
+				 * @brief Build an owned component path for an exception.
+				 * @param prefix Fixed Database exception prefix.
+				 * @param component Dynamic exception component.
+				 * @return Base-owned path text.
+				 */
+				static StormByte::Safe::String ComponentPath(std::string_view prefix, std::string_view component);
 		};
 
 		/**
@@ -141,7 +149,7 @@ namespace StormByte {
 				 * @param args Format arguments.
 				 */
 				template <typename... Args>
-				WrongValueType(std::string_view component, std::format_string<Args...> fmt, Args &&...args) : Exception(StormByte::Exception::Path{std::string{"Database.WrongValueType."}.append(component)}, fmt, std::forward<Args>(args)...) {}
+				WrongValueType(std::string_view component, std::format_string<Args...> fmt, Args &&...args) : Exception(StormByte::Exception::Path{ComponentPath("Database.WrongValueType.", component)}, fmt, std::forward<Args>(args)...) {}
 		};
 
 		/**
@@ -206,7 +214,7 @@ namespace StormByte {
 				 * @param args Format arguments.
 				 */
 				template <typename... Args>
-				QueryException(std::string_view component, std::format_string<Args...> fmt, Args &&...args) : Exception(StormByte::Exception::Path{std::string{"Database.Query."}.append(component)}, fmt, std::forward<Args>(args)...) {}
+				QueryException(std::string_view component, std::format_string<Args...> fmt, Args &&...args) : Exception(StormByte::Exception::Path{ComponentPath("Database.Query.", component)}, fmt, std::forward<Args>(args)...) {}
 		};
 
 		/**
@@ -264,3 +272,30 @@ namespace StormByte {
 		};
 	}
 }
+
+/** @brief Conditional DLL safety requires compatible ABIs and the Database provider module to remain loaded. */
+STORMBYTE_DECLARE_MAYBE_SAFE(StormByte::Database::Exception);
+
+/** @brief Conditional DLL safety requires compatible ABIs and the Database provider module to remain loaded. */
+STORMBYTE_DECLARE_MAYBE_SAFE(StormByte::Database::ConnectionError);
+
+/** @brief Conditional DLL safety requires compatible ABIs and the Database provider module to remain loaded. */
+STORMBYTE_DECLARE_MAYBE_SAFE(StormByte::Database::WrongValueType);
+
+/** @brief Conditional DLL safety requires compatible ABIs and the Database provider module to remain loaded. */
+STORMBYTE_DECLARE_MAYBE_SAFE(StormByte::Database::ColumnNotFound);
+
+/** @brief Conditional DLL safety requires compatible ABIs and the Database provider module to remain loaded. */
+STORMBYTE_DECLARE_MAYBE_SAFE(StormByte::Database::OutOfBounds);
+
+/** @brief Conditional DLL safety requires compatible ABIs and the Database provider module to remain loaded. */
+STORMBYTE_DECLARE_MAYBE_SAFE(StormByte::Database::QueryException);
+
+/** @brief Conditional DLL safety requires compatible ABIs and the Database provider module to remain loaded. */
+STORMBYTE_DECLARE_MAYBE_SAFE(StormByte::Database::UnknownSTMT);
+
+/** @brief Conditional DLL safety requires compatible ABIs and the Database provider module to remain loaded. */
+STORMBYTE_DECLARE_MAYBE_SAFE(StormByte::Database::ExecuteError);
+
+/** @brief Conditional DLL safety requires compatible ABIs and the Database provider module to remain loaded. */
+STORMBYTE_DECLARE_MAYBE_SAFE(StormByte::Database::TransactionError);

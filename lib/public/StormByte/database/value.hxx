@@ -44,9 +44,12 @@
 #include <StormByte/database/exception.hxx>
 #include <StormByte/database/typedefs.hxx>
 #include <StormByte/database/visibility.h>
+#include <StormByte/safe/binary.hxx>
+#include <StormByte/safe/variant.hxx>
 #include <StormByte/type_traits.hxx>
 
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <string_view>
 #include <type_traits>
@@ -79,7 +82,7 @@ namespace StormByte {
 					UnsignedLongInteger, ///< unsigned long long int (64-bit on every platform)
 					Double,				 ///< double
 					Text,				 ///< StormByte::Safe::String
-					Blob,				 ///< StormByte::BinaryData
+					Blob,				 ///< StormByte::Safe::Binary
 					Boolean				 ///< bool
 				};
 
@@ -90,67 +93,67 @@ namespace StormByte {
 				/**
 				 * @brief Default constructor. Stores SQL NULL.
 				 */
-				Value() noexcept : m_value(std::monostate{}), m_type(Type::Null) {}
+				Value() : m_value(StormByte::Safe::Monostate{}), m_type(Type::Null) {}
 
 				/**
 				 * @brief From a signed int.
 				 * @param value Stored value.
 				 */
-				Value(int value) noexcept : m_value(value), m_type(Type::Integer) {}
+				Value(int value) : m_value(value), m_type(Type::Integer) {}
 
 				/**
 				 * @brief From an unsigned int.
 				 * @param value Stored value.
 				 */
-				Value(unsigned int value) noexcept : m_value(value), m_type(Type::UnsignedInteger) {}
+				Value(unsigned int value) : m_value(value), m_type(Type::UnsignedInteger) {}
 
 				/**
 				 * @brief From a signed long int, stored as long long int.
 				 * @param value Stored value.
 				 */
-				Value(long int value) noexcept : m_value(static_cast<long long int>(value)), m_type(Type::LongInteger) {}
+				Value(long int value) : m_value(static_cast<long long int>(value)), m_type(Type::LongInteger) {}
 
 				/**
 				 * @brief From an unsigned long int, stored as unsigned long long int.
 				 * @param value Stored value.
 				 */
-				Value(unsigned long int value) noexcept : m_value(static_cast<unsigned long long int>(value)), m_type(Type::UnsignedLongInteger) {}
+				Value(unsigned long int value) : m_value(static_cast<unsigned long long int>(value)), m_type(Type::UnsignedLongInteger) {}
 
 				/**
 				 * @brief From a signed long long int.
 				 * @param value Stored value.
 				 */
-				Value(long long int value) noexcept : m_value(value), m_type(Type::LongInteger) {}
+				Value(long long int value) : m_value(value), m_type(Type::LongInteger) {}
 
 				/**
 				 * @brief From an unsigned long long int.
 				 * @param value Stored value.
 				 */
-				Value(unsigned long long int value) noexcept : m_value(value), m_type(Type::UnsignedLongInteger) {}
+				Value(unsigned long long int value) : m_value(value), m_type(Type::UnsignedLongInteger) {}
 
 				/**
 				 * @brief From a double.
 				 * @param value Stored value.
 				 */
-				Value(double value) noexcept : m_value(value), m_type(Type::Double) {}
+				Value(double value) : m_value(value), m_type(Type::Double) {}
 
 				/**
 				 * @brief Copy UTF-8 text into a String-owned value.
 				 * @param value Text to store.
 				 */
-				Value(std::string_view value) noexcept;
+				Value(std::string_view value);
 
 				/**
 				 * @brief Copy a blob into Base-owned storage.
 				 * @param value Stored bytes.
 				 */
-				Value(const StormByte::BinaryData &value);
+				Value(const StormByte::Safe::Binary &value);
 
 				/**
 				 * @brief Move a blob into this value.
 				 * @param value Stored bytes.
 				 */
-				Value(StormByte::BinaryData &&value) noexcept;
+				Value(StormByte::Safe::Binary &&value);
 
 				/**
 				 * @brief From a bool.
@@ -158,7 +161,7 @@ namespace StormByte {
 				 */
 				template <typename T>
 					requires StormByte::Type::SameAs<std::remove_cvref_t<T>, bool>
-				Value(T &&value) noexcept : m_value(value), m_type(Type::Boolean) {}
+					Value(T &&value) : m_value(value), m_type(Type::Boolean) {}
 				/** @} */
 
 				/**
@@ -186,7 +189,9 @@ namespace StormByte {
 				 * @param other Other value.
 				 * @return true if equal.
 				 */
-				inline bool operator==(const Value &other) const noexcept {
+				inline bool operator==(const Value &other) const {
+					if (m_type == Type::Null && other.m_type == Type::Null)
+						return true;
 					return m_value == other.m_value;
 				}
 
@@ -195,7 +200,7 @@ namespace StormByte {
 				 * @param other Other value.
 				 * @return true if not equal.
 				 */
-				inline bool operator!=(const Value &other) const noexcept {
+				inline bool operator!=(const Value &other) const {
 					return !(*this == other);
 				}
 
@@ -211,12 +216,14 @@ namespace StormByte {
 				 * @throws WrongValueType on mismatch or unsafe conversion.
 				 */
 				template <typename T>
-					requires StormByte::Type::VariantHasType<ValuesVariant, std::decay_t<T>>
+					requires (ValuesVariant::AlternativeIndex<std::decay_t<T>>() != ValuesVariant::npos)
 				std::decay_t<T> Get() const {
+						if (m_value.valueless_by_exception())
+							throw WrongValueType("Requested type does not match stored type (null).");
 					using To = std::decay_t<T>;
-					return std::visit([](auto &&val) -> To {
+						return StormByte::Safe::visit([](auto &&val) -> To {
 						using From = std::decay_t<decltype(val)>;
-						if constexpr (StormByte::Type::SameAs<From, std::monostate>) {
+							if constexpr (StormByte::Type::SameAs<From, StormByte::Safe::Monostate>) {
 							throw WrongValueType("Requested type does not match stored type (null).");
 						} else if constexpr (StormByte::Type::SameAs<From, To>) {
 							return val;
@@ -309,8 +316,8 @@ namespace StormByte {
 					}
 				}
 
-				ValuesVariant m_value; ///< Internal storage
-				enum Type m_type;	   ///< Discriminator
+				ValuesVariant m_value; ///< Base-owned alternative storage.
+				enum Type m_type;	   ///< SQL value discriminator.
 		};
 	}
 }
