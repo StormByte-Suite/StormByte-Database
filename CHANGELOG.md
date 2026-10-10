@@ -23,7 +23,7 @@ If you landed here from a release link and have not read the tree:
 ## [Unreleased]
 [Unreleased]: https://github.com/StormByte-Suite/StormByte-Database/compare/2.0.0...HEAD
 
-## [2.0.0] - 2026-10-08
+## [2.0.0] - 2026-10-10
 
 ### Changed
 
