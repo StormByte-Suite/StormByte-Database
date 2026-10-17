@@ -36,7 +36,7 @@ jobs:
       - name: Warm submodule / checkout cache
         uses: stormbytepp/githubactions/.github/actions/checkout-cached@master
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           submodules: recursive
 
   apt-bootstrap:
@@ -98,7 +98,7 @@ jobs:
       - name: Checkout repository and submodules
         uses: stormbytepp/githubactions/.github/actions/checkout-cached@master
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           submodules: recursive
 
       - name: Check OpenSSL build tools
@@ -313,7 +313,7 @@ jobs:
       - name: Checkout repository and submodules
         uses: stormbytepp/githubactions/.github/actions/checkout-cached@master
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           submodules: recursive
 
       - name: Check OpenSSL build tools
@@ -460,7 +460,7 @@ jobs:
       - name: Checkout repository and submodules
         uses: stormbytepp/githubactions/.github/actions/checkout-cached@master
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           submodules: recursive
 
       - name: Install win_flex_bison
