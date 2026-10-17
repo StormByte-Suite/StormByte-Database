@@ -265,7 +265,7 @@ jobs:
         uses: stormbytepp/githubactions/.github/actions/build-with-toolchain@master
         with:
           toolchain: ${{ matrix.compiler }}
-          ccache-key: v1-release-${{ matrix.compiler }}
+          ccache-key: v1-${{ matrix.compiler }}-BUNDLED
           buildmaster-datadir-cache-key: bm-datadir-release-${{ matrix.compiler }}
           build-type: ${{ env.BUILD_TYPE }}
           configure-options: >-
@@ -400,7 +400,7 @@ jobs:
         uses: stormbytepp/githubactions/.github/actions/build-with-toolchain@master
         with:
           toolchain: ${{ matrix.compiler }}
-          ccache-key: v1-release-macos-${{ matrix.compiler }}
+          ccache-key: v1-${{ matrix.compiler }}-BUNDLED
           buildmaster-datadir-cache-key: bm-datadir-release-macos-${{ matrix.compiler }}
           build-type: ${{ env.BUILD_TYPE }}
           configure-options: >-
@@ -680,7 +680,7 @@ jobs:
         uses: stormbytepp/githubactions/.github/actions/build-with-toolchain@master
         with:
           toolchain: clang-cl
-          ccache-key: v1-release-clang-cl
+          ccache-key: v1-clang-cl-mdb(BUNDLED)-pg(BUNDLED)-sqlite(BUNDLED)
           buildmaster-datadir-cache-key: bm-datadir-release-clang-cl
           build-type: ${{ env.BUILD_TYPE }}
           configure-options: >-
