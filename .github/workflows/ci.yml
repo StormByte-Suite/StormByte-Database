@@ -87,7 +87,7 @@ jobs:
     name: linux-${{ matrix.compiler }}-${{ matrix.dependencies }}
 
     env:
-      LD_LIBRARY_PATH: ${{ github.workspace }}/build/buildmaster/install/lib64:${{ github.workspace }}/build/lib
+      LD_LIBRARY_PATH: ${{ github.workspace }}/build/lib:${{ github.workspace }}/build/buildmaster/install/lib:${{ github.workspace }}/build/buildmaster/install/lib64
       MSSQL_HOST: 127.0.0.1
       MSSQL_USER: sa
       MSSQL_PASSWORD: "StormByte!Mssql2026"
@@ -271,8 +271,11 @@ jobs:
         with:
           toolchain: ${{ matrix.compiler }}
           ccache-key: v1-${{ matrix.compiler }}-${{ matrix.dependencies }}
+          buildmaster-datadir-cache-key: bm-datadir-${{ runner.os }}-${{ matrix.compiler }}-${{ matrix.dependencies }}
           build-type: ${{ env.BUILD_TYPE }}
           configure-options: >-
+            -DENABLE_LTO=ON
+            -DENABLE_PGO=ON
             -DENABLE_TEST=ON
             -DBUILD_SHARED_LIBS=ON
             -DWITH_SQLITE=${{ matrix.dependencies }}
@@ -300,7 +303,7 @@ jobs:
     name: macos-${{ matrix.compiler }}-${{ matrix.dependencies }}
 
     env:
-      DYLD_LIBRARY_PATH: ${{ github.workspace }}/build/buildmaster/install/lib64:${{ github.workspace }}/build/lib
+      DYLD_LIBRARY_PATH: ${{ github.workspace }}/build/lib:${{ github.workspace }}/build/buildmaster/install/lib:${{ github.workspace }}/build/buildmaster/install/lib64
       MSSQL_HOST: ${{ github.ref == 'refs/heads/master' && secrets.TS_OAUTH_CLIENT_ID != '' && secrets.TS_AUDIENCE != '' && vars.MSSQL_REMOTE_HOST || '' }}
       MSSQL_USER: ${{ secrets.MSSQL_USER }}
       MSSQL_PASSWORD: ${{ secrets.MSSQL_PASSWORD }}
@@ -422,8 +425,11 @@ jobs:
         with:
           toolchain: ${{ matrix.compiler }}
           ccache-key: v1-${{ matrix.compiler }}-${{ matrix.dependencies }}
+          buildmaster-datadir-cache-key: bm-datadir-${{ runner.os }}-${{ matrix.compiler }}-${{ matrix.dependencies }}
           build-type: ${{ env.BUILD_TYPE }}
           configure-options: >-
+            -DENABLE_LTO=ON
+            -DENABLE_PGO=ON
             -DENABLE_TEST=ON
             -DBUILD_SHARED_LIBS=ON
             -DWITH_SQLITE=${{ matrix.dependencies }}
@@ -693,8 +699,11 @@ jobs:
         with:
           toolchain: clang-cl
           ccache-key: v1-clang-cl-mdb(BUNDLED)-pg(BUNDLED)-sqlite(BUNDLED)
+          buildmaster-datadir-cache-key: bm-datadir-${{ runner.os }}-clang-cl
           build-type: ${{ env.BUILD_TYPE }}
           configure-options: >-
+            -DENABLE_LTO=ON
+            -DENABLE_PGO=ON
             -DENABLE_TEST=ON
             -DBUILD_SHARED_LIBS=ON
             -DWITH_SQLITE=BUNDLED
@@ -705,20 +714,3 @@ jobs:
             -DWITH_STORMBYTE=BUNDLED
           run-tests: true
           ctest-options: --output-on-failure --test-dir ${{ github.workspace }}\build\test
-
-  ###########################################################################
-  # Docs (StormByteDatabaseDoc) — SQLite BUNDLED only, no live DB servers
-  ###########################################################################
-  docs:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    needs: [checkout-bootstrap, apt-bootstrap]
-    uses: stormbytepp/githubactions/.github/workflows/generate-and-deploy-docs.yml@master
-    with:
-      doc_target: StormByteDatabaseDoc
-      extra-cmake-options: >-
-        -DENABLE_DOC=ON
-        -DWITH_SQLITE=BUNDLED
-        -DWITH_POSTGRES=OFF
-        -DWITH_MARIADB=OFF
-        -DWITH_STORMBYTE=BUNDLED
-      docs_output_dir: ./_site

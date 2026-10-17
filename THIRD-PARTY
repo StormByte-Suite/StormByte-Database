@@ -1,0 +1,77 @@
+Third-party code compiled into this binary
+==========================================
+
+This file is a notice. It is not a license and it does not change the
+license of StormByte-Database.
+
+StormByte-Database original source is dual-licensed LGPL-3.0-or-later or
+commercial, as stated in LICENSE. A commercial license covers only that
+original source. It does not replace the license of anything listed here.
+
+The release archive is a binary. The shared library has the following
+object code compiled into it. StormByte Base and StormByte Logger are not
+in that list: they are separate shared libraries, linked at run time, and
+each ships its own archive, LICENSE and THIRD-PARTY.
+
+The way to relink, for every LGPL component below, is to rebuild this
+repository at the Git tag of the release. The tag contains the build files
+and the pinned sources. This project does not ship a kit of .o files.
+Source tarballs for the same tag are on the GitHub release page:
+
+    https://github.com/StormByte-Suite/StormByte-Database
+
+SQLite amalgamation 3.53.4
+---------------------------
+
+File in the release: sqlite-amalgamation-3530400.
+
+The compiled object is the amalgamation itself. Its author disclaims
+copyright. The blessing from sqlite3.h of that amalgamation is
+COPYING.SQLite.
+
+PostgreSQL client, commit 724edf9bde9d356724ad384a2e196edc3c9f80f7
+-----------------------------------------------------------------
+
+Compiled in as static archives: pq, pgport, pgport_shlib, pgcommon and
+pgcommon_shlib. The server, documentation and procedural languages are
+not compiled in.
+
+License: the PostgreSQL license. The text from COPYRIGHT of that commit
+is COPYING.PostgreSQL.
+
+MariaDB Connector/C, commit be67a4fc1e0493913732df90e562f122bff9dfe3
+-------------------------------------------------------------------
+
+Compiled in as the static client archive mariadbclient. Auth plugins are
+not part of this archive.
+
+License: GNU Lesser General Public License, version 2.1. The text from
+COPYING.LIB of that commit is COPYING.MariaDB.
+
+FreeTDS client, commit c443d7d43b9ffe1eeac6b1d91e292da4f1fb8590
+--------------------------------------------------------------
+
+Compiled in as static archives of the client only: db-lib, tds,
+replacements and tdsutils. The FreeTDS server, ODBC driver, CT-Library,
+connection pool and command-line tools are not compiled in.
+
+Those client objects are under the GNU Library General Public License,
+version 2 or, at your option, any later version. That is the notice in
+src/dblib, src/tds and src/replacements of that commit. The repository
+file COPYING.txt is the GNU GPL version 2 and is not the license of the
+objects in this binary.
+
+The Library GPL text is COPYING.FreeTDS.
+
+OpenSSL 3.5.9, commit 45e844fa2a14ec92d146bd8f5778ac130b6625fb
+-------------------------------------------------------------
+
+Compiled in as static libssl and libcrypto, because the PostgreSQL,
+MariaDB and FreeTDS clients above are built against it. A build that
+selects WITH_OPENSSL=SYSTEM does not embed these objects; the release
+archives do.
+
+License: Apache License 2.0. The text from LICENSE.txt of that commit is
+COPYING.OpenSSL. That commit has no NOTICE file.
+
+Anything not listed here is not compiled into this shared library.

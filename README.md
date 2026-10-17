@@ -9,7 +9,7 @@
 
 This repository is **StormByte Database**: the C++26 SQL layer of the StormByte suite.
 
-It depends on StormByte-Logger 2.0.0 or newer, which supplies the bundled text and StormByte Base dependencies. Public headers live under `StormByte/database/`.
+It depends on StormByte Base 2.1.0 and StormByte-Logger 2.0.2, downloaded as release archives. Public headers live under `StormByte/database/`.
 
 One API covers SQLite, PostgreSQL, MariaDB and Microsoft SQL Server (MSSQL). You do **not** construct those backends as generic objects. They are **base classes**: derive your schema, call the backend constructor, prepare statements and hook connect/disconnect there.
 
@@ -65,7 +65,7 @@ The suite is split on purpose. Base, Buffer, Config, Crypto, Logger, Multimedia,
 
 ## Installation
 
-Needs a C++26 compiler, CMake 3.28 or newer, and StormByte-Logger 2.0.0 or newer. Logger supplies the bundled text and StormByte Base dependencies used by Database. The SQLite, PostgreSQL, MariaDB and MSSQL backends are independently optional. The default for each is `BUNDLED`; set each `WITH_SQLITE`, `WITH_POSTGRES`, `WITH_MARIADB` or `WITH_MSSQL` option to `OFF`, `SYSTEM` or `BUNDLED` to choose explicitly. `SYSTEM` discovers an installed client library and `BUNDLED` builds the pinned client dependency. Only enabled backends are compiled and their optional headers installed. The bundled MSSQL backend uses FreeTDS DB-Library under its LGPL license; FreeTDS utilities and ODBC/CT-Library targets are excluded.
+Needs a C++26 compiler, CMake 3.28 or newer, StormByte-BuildMaster 2.1.0, StormByte Base 2.1.0 and StormByte-Logger 2.0.2. Base and Logger are release archives, not submodules. The SQLite, PostgreSQL, MariaDB and MSSQL backends are independently optional. The default for each is `BUNDLED`; set each `WITH_SQLITE`, `WITH_POSTGRES`, `WITH_MARIADB` or `WITH_MSSQL` option to `OFF`, `SYSTEM` or `BUNDLED` to choose explicitly. `SYSTEM` discovers an installed client library and `BUNDLED` builds the pinned client dependency. Only enabled backends are compiled and their optional headers installed. The bundled MSSQL backend compiles FreeTDS DB-Library and the TDS support it needs, under the GNU Library General Public License v2 or later. FreeTDS utilities, the server, ODBC and CT-Library are not compiled in.
 
 `WITH_OPENSSL` accepts `SYSTEM` or `BUNDLED` (default); `OFF` is not supported. Windows always forces `BUNDLED`, regardless of the requested value. It selects TLS dependencies for bundled PostgreSQL, MariaDB and FreeTDS clients. `BUNDLED` builds their common pinned OpenSSL 3.5.9 dependency as static libraries and requires Perl and a make implementation, plus NASM on Windows. `SYSTEM` uses installed dynamic OpenSSL libraries and development files without requesting static archives; PostgreSQL uses Meson's normal OpenSSL discovery. Already-installed system database clients keep their own TLS dependencies. Changing dependency modes requires a clean build directory.
 
@@ -318,4 +318,4 @@ Issues only on this repository. Fork and open a pull request against `master`.
 
 ## License
 
-Dual license: GNU Lesser General Public License v3.0 or later, or a commercial license from the copyright holder. See [LICENSE](LICENSE), [COPYING.LGPLv3](COPYING.LGPLv3) and <https://www.gnu.org/licenses/lgpl-3.0.html>. Third-party trees under `thirdparty/` keep their own licenses.
+Dual license: GNU Lesser General Public License v3.0 or later, or a commercial license from the copyright holder. See [LICENSE](LICENSE), [COPYING.LGPLv3](COPYING.LGPLv3) and <https://www.gnu.org/licenses/lgpl-3.0.html>. Binary releases add THIRD-PARTY beside LICENSE. That file is a notice for what was compiled into the shared library, not another grant. The texts it names are the COPYING.* files in the same archive. A commercial license does not replace those.

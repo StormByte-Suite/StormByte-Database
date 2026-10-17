@@ -17,10 +17,9 @@ StormByte-Database original source is dual-licensed:
 
 Both licenses apply only to original StormByte-Database source in this
 repository. They do not cover other StormByte modules or any third-party
-material shipped with this repository (including everything under
-thirdparty/, and in particular the bundled StormByte-Logger tree and
-the PostgreSQL, MariaDB and SQLite trees), which remain under their own
-licenses.
+material compiled into a binary of this library. StormByte Base and
+StormByte Logger are separate libraries. The database clients compiled
+into this one remain under their own licenses.
 
 Neither license grants any patent rights. Any patent licenses required
 to use this software or third-party components must be obtained separately
@@ -30,6 +29,10 @@ StormByte-Database is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
+
+Notices for code compiled into a binary of this library, including any
+third-party object code, are in THIRD-PARTY. The license texts that notice
+cites are the COPYING.* files shipped beside this file.
 
 You should have received a copy of the GNU Lesser General Public License
 version 3 along with StormByte-Database. If not, see

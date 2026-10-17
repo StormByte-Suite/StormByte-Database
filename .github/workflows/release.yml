@@ -1,0 +1,769 @@
+name: Release
+
+# Manual only. In the Actions tab, pick a tag. master (or any branch)
+# fails before the build. The zips replace the assets of that tag's release,
+# which does not have to be the latest. A retag of the same name is replaced.
+#
+# The archive compiles every backend (SQLite, PostgreSQL, MariaDB and the
+# MSSQL client). PostgreSQL and MariaDB are initialized first so the PGO
+# training run can execute those tests. On Linux the MSSQL container from CI
+# is started too. macOS and Windows have no SQL Server on a tag, so those
+# tests skip the same way they do off master.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+  pages: write
+  id-token: write
+
+env:
+  BUILD_TYPE: Release
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a tag
+        run: |
+          set -euo pipefail
+          if [ "${{ github.ref_type }}" != "tag" ]; then
+            echo "::error::Selected ref is '${{ github.ref_name }}'. Run this workflow on a tag, not on master."
+            exit 1
+          fi
+          echo "Release tag: ${{ github.ref_name }}"
+
+  checkout-bootstrap:
+    needs: guard
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    name: checkout-bootstrap (${{ matrix.os }})
+    steps:
+      - name: Warm submodule / checkout cache
+        uses: stormbytepp/githubactions/.github/actions/checkout-cached@master
+        with:
+          fetch-depth: 1
+          submodules: recursive
+
+  apt-bootstrap:
+    needs: guard
+    runs-on: ubuntu-latest
+    name: apt-bootstrap
+    steps:
+      - name: Warm APT lists cache
+        uses: stormbytepp/githubactions/.github/actions/update-apt-cached@master
+        with:
+          cache-key: apt-lists
+
+  build-linux:
+    needs: [checkout-bootstrap, apt-bootstrap]
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=10
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: "StormByte!Mssql2026"
+        ports:
+          - 1433:1433
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - compiler: clang
+            stdlib: libstdc++
+            asset: linux-x64-libstdc++
+          - compiler: clang-libc++
+            stdlib: libc++
+            asset: linux-x64-libc++
+    name: linux-${{ matrix.stdlib }}
+    env:
+      LD_LIBRARY_PATH: ${{ github.workspace }}/build/pgo-instr/lib:${{ github.workspace }}/build/pgo-instr/buildmaster/install/lib:${{ github.workspace }}/build/pgo-instr/buildmaster/install/lib64:${{ github.workspace }}/build/lib:${{ github.workspace }}/build/buildmaster/install/lib:${{ github.workspace }}/build/buildmaster/install/lib64
+      MSSQL_HOST: 127.0.0.1
+      MSSQL_USER: sa
+      MSSQL_PASSWORD: "StormByte!Mssql2026"
+      MSSQL_DATABASE: master
+      MSSQL_PORT: 1433
+    steps:
+      - name: Checkout repository and submodules
+        uses: stormbytepp/githubactions/.github/actions/checkout-cached@master
+        with:
+          fetch-depth: 1
+          submodules: recursive
+
+      - name: Check OpenSSL build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v perl
+          command -v make
+
+      - name: Install Postgres client tools (when backend enabled)
+        uses: stormbytepp/githubactions/.github/actions/install-cached@master
+        with:
+          packages: "postgresql-client"
+          cache-key: apt-postgres-client
+          lists-cache-key: apt-lists
+          rotate-weekly: true
+
+      - name: Install MariaDB common deps
+        uses: stormbytepp/githubactions/.github/actions/install-cached@master
+        with:
+          packages: "openssl libssl-dev libssl3 zlib1g ca-certificates mariadb-client"
+          cache-key: apt-mariadb-common
+          lists-cache-key: apt-lists
+          rotate-weekly: true
+
+      - name: Install MariaDB server
+        uses: stormbytepp/githubactions/.github/actions/install-cached@master
+        with:
+          packages: "mariadb-server"
+          cache-key: apt-mariadb-server
+          lists-cache-key: apt-lists
+          rotate-weekly: true
+
+      - name: Create Postgres test role and database
+        shell: bash
+        env:
+          PGPASSWORD: test
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 60); do
+            if psql -h 127.0.0.1 -p 5432 -U postgres -c '\q' >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          if ! psql -h 127.0.0.1 -p 5432 -U postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='testuser'" | grep -q 1; then
+            psql -h 127.0.0.1 -p 5432 -U postgres -c "CREATE ROLE testuser WITH LOGIN PASSWORD 'testpass';"
+          fi
+          if ! psql -h 127.0.0.1 -p 5432 -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname='stormbyte_test'" | grep -q 1; then
+            psql -h 127.0.0.1 -p 5432 -U postgres -c "CREATE DATABASE stormbyte_test OWNER testuser;"
+          fi
+          psql -h 127.0.0.1 -p 5432 -U postgres -c "ALTER ROLE testuser CREATEDB;" || true
+
+      - name: Initialize MariaDB with SSL certificates
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sudo systemctl stop mariadb || sudo service mariadb stop || true
+
+          TMPDIR=$(mktemp -d)
+          pushd "$TMPDIR" >/dev/null
+          printf '%s\n' 'subjectAltName=DNS:localhost,IP:127.0.0.1' > san.cnf
+
+          openssl genrsa -out ca-key.pem 4096
+          openssl req -x509 -new -nodes -key ca-key.pem -sha256 -days 365 \
+            -subj "/CN=CI MariaDB CA" -out ca.pem
+
+          openssl genrsa -out server-key.pem 4096
+          openssl req -new -key server-key.pem -subj "/CN=localhost" -out server.csr
+          openssl x509 -req -in server.csr -CA ca.pem -CAkey ca-key.pem -CAcreateserial \
+            -out server-cert.pem -days 365 -sha256 -extfile san.cnf
+
+          sudo mkdir -p /etc/mysql/certs
+          sudo cp ca.pem server-cert.pem server-key.pem /etc/mysql/certs/
+          sudo chown -R mysql:mysql /etc/mysql/certs
+          sudo chmod 600 /etc/mysql/certs/server-key.pem
+          popd >/dev/null
+          rm -rf "$TMPDIR"
+
+          sudo mkdir -p /etc/mysql/conf.d
+          printf '%s\n' '[mysqld]' \
+            'ssl-ca=/etc/mysql/certs/ca.pem' \
+            'ssl-cert=/etc/mysql/certs/server-cert.pem' \
+            'ssl-key=/etc/mysql/certs/server-key.pem' \
+            | sudo tee /etc/mysql/conf.d/ssl.cnf > /dev/null
+
+          sudo find /etc/mysql -type f -exec grep -Il "mysqlx-bind-address" {} \; 2>/dev/null \
+            | while read -r f; do
+                echo "stripping mysqlx-bind-address from $f"
+                sudo sed -i '/mysqlx-bind-address/d' "$f" || true
+              done || true
+
+          sudo rm -rf /var/lib/mysql || true
+          sudo mkdir -p /var/lib/mysql
+          sudo chown mysql:mysql /var/lib/mysql
+
+          TMPCNF=/tmp/ci-mariadb.cnf
+          printf '%s\n' '[mysqld]' 'datadir=/var/lib/mysql' \
+            'socket=/var/run/mysqld/mysqld.sock' 'skip-log-bin' \
+            | sudo tee "$TMPCNF" > /dev/null
+
+          if ! sudo mariadb-install-db --defaults-file="$TMPCNF" --user=mysql --datadir=/var/lib/mysql 2>&1 | sed -n '1,200p'; then
+            echo "mariadb-install-db failed"
+            sudo sed -n '1,200p' "$TMPCNF" || true
+            sudo find /etc/mysql -type f -maxdepth 3 -print -exec sed -n '1,200p' {} \; 2>/dev/null || true
+            exit 1
+          fi
+          sudo rm -f "$TMPCNF" || true
+          sudo chown -R mysql:mysql /var/lib/mysql || true
+
+          if ! (sudo systemctl start mariadb || sudo service mariadb start); then
+            echo "--- systemctl status mariadb ---"
+            sudo systemctl status mariadb.service --no-pager -l || true
+            echo "--- journalctl mariadb ---"
+            sudo journalctl -xeu mariadb.service --no-pager -n 200 || true
+            echo "--- mariadb error log ---"
+            sudo cat /var/log/mysql/error.log 2>/dev/null || sudo cat /var/log/mysql/mariadb.log 2>/dev/null || true
+            exit 1
+          fi
+
+          for i in $(seq 1 60); do
+            if sudo mysql -e "SELECT 1;" >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+
+          sudo mysql -e "CREATE USER IF NOT EXISTS 'testuser'@'localhost' IDENTIFIED BY 'testpass';"
+          sudo mysql -e "CREATE DATABASE IF NOT EXISTS stormbyte_test;"
+          sudo mysql -e "GRANT ALL PRIVILEGES ON stormbyte_test.* TO 'testuser'@'localhost'; FLUSH PRIVILEGES;"
+
+      - name: Wait for SQL Server
+        shell: bash
+        env:
+          MSSQL_CONTAINER_ID: ${{ job.services.mssql.id }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 90); do
+            if docker logs "$MSSQL_CONTAINER_ID" 2>&1 | grep -Fq "SQL Server is now ready for client connections"; then
+              exit 0
+            fi
+            if [[ "$(docker inspect -f '{{.State.Running}}' "$MSSQL_CONTAINER_ID")" != "true" ]]; then
+              docker logs "$MSSQL_CONTAINER_ID"
+              exit 1
+            fi
+            sleep 2
+          done
+          docker logs "$MSSQL_CONTAINER_ID"
+          exit 1
+
+      - name: Build with toolchain
+        uses: stormbytepp/githubactions/.github/actions/build-with-toolchain@master
+        with:
+          toolchain: ${{ matrix.compiler }}
+          ccache-key: v1-release-${{ matrix.compiler }}
+          buildmaster-datadir-cache-key: bm-datadir-release-${{ matrix.compiler }}
+          build-type: ${{ env.BUILD_TYPE }}
+          configure-options: >-
+            -DENABLE_LTO=ON
+            -DENABLE_PGO=ON
+            -DBUILD_SHARED_LIBS=ON
+            -DWITH_SQLITE=BUNDLED
+            -DWITH_POSTGRES=BUNDLED
+            -DWITH_MARIADB=BUNDLED
+            -DWITH_MSSQL=BUNDLED
+            -DWITH_OPENSSL=BUNDLED
+            -DWITH_STORMBYTE=BUNDLED
+            -DCMAKE_CXX_FLAGS=-stdlib=${{ matrix.stdlib }}
+          run-tests: false
+          install: true
+          install-location: package
+
+      - name: Zip the install prefix
+        id: zip
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="${{ github.event.repository.name }}-${{ github.ref_name }}-${{ matrix.asset }}.zip"
+          for notice in LICENSE COPYING.* THIRD-PARTY; do
+            if [[ -f "${notice}" ]]; then
+              cp "${notice}" package/
+            fi
+          done
+          (
+            cd package
+            cmake -E tar cf "../${name}" --format=zip -- .
+          )
+          echo "name=${name}" >> "$GITHUB_OUTPUT"
+          echo "Packed ${name}"
+          cmake -E tar tf "${name}"
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.zip.outputs.name }}
+          path: ${{ steps.zip.outputs.name }}
+          if-no-files-found: error
+
+  build-macos:
+    needs: [checkout-bootstrap]
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - compiler: clang
+            asset: macos-arm64-libc++
+          - compiler: gcc
+            asset: macos-arm64-libstdc++
+    name: macos-${{ matrix.asset }}
+    env:
+      DYLD_LIBRARY_PATH: ${{ github.workspace }}/build/pgo-instr/lib:${{ github.workspace }}/build/pgo-instr/buildmaster/install/lib:${{ github.workspace }}/build/pgo-instr/buildmaster/install/lib64:${{ github.workspace }}/build/lib:${{ github.workspace }}/build/buildmaster/install/lib:${{ github.workspace }}/build/buildmaster/install/lib64
+    steps:
+      - name: Checkout repository and submodules
+        uses: stormbytepp/githubactions/.github/actions/checkout-cached@master
+        with:
+          fetch-depth: 1
+          submodules: recursive
+
+      - name: Check OpenSSL build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v perl
+          command -v make
+
+      - name: Install and start Postgres (brew)
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install postgresql@15
+          brew link --force --overwrite postgresql@15 || true
+          brew services start postgresql@15
+          for i in $(seq 1 60); do
+            if pg_isready >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          createuser -s testuser 2>/dev/null || true
+          psql -d postgres -c "ALTER USER testuser WITH PASSWORD 'testpass';" || true
+          createdb -O testuser stormbyte_test 2>/dev/null || true
+
+      - name: Install and start MariaDB with SSL (brew)
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install mariadb openssl@3
+          brew services stop mariadb || true
+
+          CERT_DIR="${HOME}/mariadb-certs"
+          mkdir -p "$CERT_DIR"
+          cd "$CERT_DIR"
+          printf '%s\n' 'subjectAltName=DNS:localhost,IP:127.0.0.1' > san.cnf
+
+          openssl genrsa -out ca-key.pem 4096
+          openssl req -x509 -new -nodes -key ca-key.pem -sha256 -days 365 \
+            -subj "/CN=CI MariaDB CA" -out ca.pem
+
+          openssl genrsa -out server-key.pem 4096
+          openssl req -new -key server-key.pem -subj "/CN=localhost" -out server.csr
+          openssl x509 -req -in server.csr -CA ca.pem -CAkey ca-key.pem -CAcreateserial \
+            -out server-cert.pem -days 365 -sha256 -extfile san.cnf
+          chmod 600 server-key.pem
+
+          CONF_DIR="$(brew --prefix)/etc/my.cnf.d"
+          mkdir -p "$CONF_DIR"
+          cat > "${CONF_DIR}/ssl.cnf" <<EOF
+          [mysqld]
+          ssl-ca=${CERT_DIR}/ca.pem
+          ssl-cert=${CERT_DIR}/server-cert.pem
+          ssl-key=${CERT_DIR}/server-key.pem
+          EOF
+
+          brew services start mariadb
+          for i in $(seq 1 90); do
+            if mysqladmin ping --silent 2>/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
+          ADMIN_USER="$(whoami)"
+          mysql -u "$ADMIN_USER" -e "CREATE USER IF NOT EXISTS 'testuser'@'localhost' IDENTIFIED BY 'testpass';"
+          mysql -u "$ADMIN_USER" -e "CREATE DATABASE IF NOT EXISTS stormbyte_test;"
+          mysql -u "$ADMIN_USER" -e "GRANT ALL PRIVILEGES ON stormbyte_test.* TO 'testuser'@'localhost'; FLUSH PRIVILEGES;"
+
+      - name: Build with toolchain
+        uses: stormbytepp/githubactions/.github/actions/build-with-toolchain@master
+        with:
+          toolchain: ${{ matrix.compiler }}
+          ccache-key: v1-release-macos-${{ matrix.compiler }}
+          buildmaster-datadir-cache-key: bm-datadir-release-macos-${{ matrix.compiler }}
+          build-type: ${{ env.BUILD_TYPE }}
+          configure-options: >-
+            -DENABLE_LTO=ON
+            -DENABLE_PGO=ON
+            -DBUILD_SHARED_LIBS=ON
+            -DWITH_SQLITE=BUNDLED
+            -DWITH_POSTGRES=BUNDLED
+            -DWITH_MARIADB=BUNDLED
+            -DWITH_MSSQL=BUNDLED
+            -DWITH_OPENSSL=BUNDLED
+            -DWITH_STORMBYTE=BUNDLED
+          run-tests: false
+          install: true
+          install-location: package
+
+      - name: Zip the install prefix
+        id: zip
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="${{ github.event.repository.name }}-${{ github.ref_name }}-${{ matrix.asset }}.zip"
+          for notice in LICENSE COPYING.* THIRD-PARTY; do
+            if [[ -f "${notice}" ]]; then
+              cp "${notice}" package/
+            fi
+          done
+          (
+            cd package
+            cmake -E tar cf "../${name}" --format=zip -- .
+          )
+          echo "name=${name}" >> "$GITHUB_OUTPUT"
+          echo "Packed ${name}"
+          cmake -E tar tf "${name}"
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.zip.outputs.name }}
+          path: ${{ steps.zip.outputs.name }}
+          if-no-files-found: error
+
+  build-windows:
+    needs: [checkout-bootstrap]
+    runs-on: windows-latest
+    name: windows-clang-cl
+    env:
+      PG_VERSION: "18.6-1"
+    steps:
+      - name: Checkout repository and submodules
+        uses: stormbytepp/githubactions/.github/actions/checkout-cached@master
+        with:
+          fetch-depth: 1
+          submodules: recursive
+
+      - name: Enable long paths for recursive checkout
+        shell: pwsh
+        run: git config --global core.longpaths true
+
+      - name: Install win_flex_bison
+        uses: stormbytepp/githubactions/.github/actions/install-cached@master
+        with:
+          packages: "winflexbison"
+
+      - name: Install Strawberry Perl
+        uses: stormbytepp/githubactions/.github/actions/install-cached@master
+        with:
+          packages: "strawberryperl"
+
+      - name: Install OpenSSL build tools
+        uses: stormbytepp/githubactions/.github/actions/install-cached@master
+        with:
+          packages: "nasm jom"
+
+      - name: Check OpenSSL build tools
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          foreach ($tool in @("perl", "nasm", "jom")) {
+            $command = Get-Command $tool -ErrorAction Stop
+            Write-Host "$tool`: $($command.Source)"
+          }
+
+      - name: Ensure flex/bison and Perl on PATH
+        shell: pwsh
+        run: |
+          foreach ($p in @(
+            'C:\ProgramData\chocolatey\bin',
+            'C:\ProgramData\chocolatey\lib\winflexbison\tools',
+            'C:\Strawberry\perl\bin'
+          )) {
+            if (Test-Path $p) {
+              echo $p | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            }
+          }
+          Get-Command win_flex, win_bison, flex, bison, perl -ErrorAction SilentlyContinue | Format-Table Name, Source
+
+      - name: Cache PostgreSQL binaries (Windows)
+        id: cache-pg
+        uses: actions/cache@v4
+        with:
+          path: |
+            C:\pgsql\bin
+            C:\pgsql\lib
+            C:\pgsql\share
+          key: pgsql-windows-x64-bin-${{ env.PG_VERSION }}
+
+      - name: Install and start Postgres (Windows)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $pgroot  = "C:\pgsql"
+          $bindir  = Join-Path $pgroot "bin"
+          $datadir = Join-Path $pgroot "data"
+          $port    = 5432
+          $pghost  = "127.0.0.1"
+
+          function Invoke-Psql([string]$Sql) {
+            & "$bindir\psql.exe" -U postgres -h $pghost -p $port -v ON_ERROR_STOP=1 -c $Sql
+            if ($LASTEXITCODE -ne 0) { throw "psql failed: $Sql" }
+          }
+
+          if (-not (Test-Path (Join-Path $bindir "pg_ctl.exe"))) {
+            Write-Host "Downloading PostgreSQL $env:PG_VERSION binary zip..."
+            $zip = Join-Path $env:RUNNER_TEMP "pgsql.zip"
+            $url = "https://get.enterprisedb.com/postgresql/postgresql-$($env:PG_VERSION)-windows-x64-binaries.zip"
+            & curl.exe -fL --retry 3 --retry-delay 2 -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" -o $zip $url
+            if ($LASTEXITCODE -ne 0 -or -not (Test-Path $zip) -or ((Get-Item $zip).Length -lt 1MB)) {
+              throw "Could not download PostgreSQL $env:PG_VERSION binaries"
+            }
+            $extractRoot = Join-Path $env:RUNNER_TEMP "pgsql-extract"
+            if (Test-Path $extractRoot) { Remove-Item $extractRoot -Recurse -Force }
+            New-Item -ItemType Directory -Path $extractRoot -Force | Out-Null
+            & tar.exe -xf $zip -C $extractRoot
+            if ($LASTEXITCODE -ne 0) {
+              Expand-Archive -LiteralPath $zip -DestinationPath $extractRoot -Force
+            }
+            $extracted = Get-ChildItem $extractRoot -Directory -Recurse -ErrorAction SilentlyContinue |
+              Where-Object { Test-Path (Join-Path $_.FullName "bin\pg_ctl.exe") } |
+              Select-Object -First 1
+            if ($null -eq $extracted) { throw "Could not find pg_ctl.exe after extract" }
+            Write-Host "Found tree at $($extracted.FullName)"
+            New-Item -ItemType Directory -Path $pgroot -Force | Out-Null
+            foreach ($name in @("bin", "lib", "share")) {
+              $src = Join-Path $extracted.FullName $name
+              if (Test-Path $src) {
+                $dst = Join-Path $pgroot $name
+                if (Test-Path $dst) { Remove-Item $dst -Recurse -Force }
+                Copy-Item $src $dst -Recurse -Force
+              }
+            }
+            Remove-Item $zip -Force -ErrorAction SilentlyContinue
+          } else {
+            Write-Host "Using cached PostgreSQL binaries at $bindir"
+          }
+
+          if (-not (Test-Path (Join-Path $bindir "pg_ctl.exe"))) {
+            throw "pg_ctl.exe still missing under $bindir"
+          }
+
+          $env:Path = "$bindir;$env:Path"
+          $bindir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+          if (Test-Path $datadir) {
+            & "$bindir\pg_ctl.exe" -D $datadir stop -m fast 2>$null | Out-Null
+            Start-Sleep -Seconds 1
+            Remove-Item $datadir -Recurse -Force -ErrorAction SilentlyContinue
+          }
+
+          Write-Host "Initializing data directory..."
+          New-Item -ItemType Directory -Path $datadir -Force | Out-Null
+          & "$bindir\initdb.exe" -D $datadir -U postgres -A trust --encoding=UTF8 --locale=C
+          if ($LASTEXITCODE -ne 0) { throw "initdb failed" }
+
+          Add-Content -Path (Join-Path $datadir "postgresql.conf") -Value @"
+
+          port = $port
+          listen_addresses = '127.0.0.1'
+          "@
+
+          @"
+          # TYPE  DATABASE        USER            ADDRESS                 METHOD
+          host    all             all             127.0.0.1/32            trust
+          host    all             all             ::1/128                 trust
+          local   all             all                                     trust
+          "@ | Set-Content -Path (Join-Path $datadir "pg_hba.conf") -Encoding ascii
+
+          Write-Host "Starting PostgreSQL..."
+          & "$bindir\pg_ctl.exe" -D $datadir -l (Join-Path $pgroot "pg.log") -o "-p $port" start
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content (Join-Path $pgroot "pg.log") -ErrorAction SilentlyContinue
+            throw "pg_ctl start failed"
+          }
+
+          $ready = $false
+          for ($i = 0; $i -lt 60; $i++) {
+            & "$bindir\pg_isready.exe" -h $pghost -p $port -U postgres | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+              & "$bindir\psql.exe" -U postgres -h $pghost -p $port -c "SELECT 1;" | Out-Null
+              if ($LASTEXITCODE -eq 0) { $ready = $true; break }
+            }
+            Start-Sleep -Seconds 1
+          }
+          if (-not $ready) {
+            Get-Content (Join-Path $pgroot "pg.log") -ErrorAction SilentlyContinue
+            throw "Postgres did not become ready"
+          }
+
+          Invoke-Psql "ALTER USER postgres WITH PASSWORD 'test';"
+
+          $exists = & "$bindir\psql.exe" -U postgres -h $pghost -p $port -t -c "SELECT 1 FROM pg_roles WHERE rolname='testuser';" | Out-String
+          if ($exists -notmatch '1') {
+            Invoke-Psql "CREATE ROLE testuser WITH LOGIN PASSWORD 'testpass' CREATEDB;"
+          }
+
+          $dbs = & "$bindir\psql.exe" -U postgres -h $pghost -p $port -lqt | Out-String
+          if ($dbs -notmatch 'stormbyte_test') {
+            Invoke-Psql "CREATE DATABASE stormbyte_test OWNER testuser;"
+          }
+
+          Write-Host "Postgres ready on ${pghost}:${port} (testuser / stormbyte_test)"
+
+      - name: Install and start MariaDB (Windows)
+        shell: pwsh
+        run: |
+          choco install mariadb --params '/RootPassword:test' -y
+          try { refreshenv } catch { Write-Host "refreshenv not available; continuing" }
+
+          $mysqlCmd = Get-Command mysql.exe -ErrorAction SilentlyContinue
+          if ($null -eq $mysqlCmd) {
+            $mdb = Get-ChildItem 'C:\Program Files' -Directory -Filter 'MariaDB*' -ErrorAction SilentlyContinue |
+              Sort-Object Name -Descending | Select-Object -First 1
+            if ($null -ne $mdb) {
+              $bindir = Join-Path $mdb.FullName 'bin'
+              $env:Path += ";$bindir"
+            }
+            $mysqlCmd = Get-Command mysql.exe -ErrorAction SilentlyContinue
+          }
+          if ($null -eq $mysqlCmd) { Write-Host "mysql.exe not found"; exit 1 }
+          $mysqlPath = $mysqlCmd.Source
+
+          $connected = $false
+          try {
+            & $mysqlPath -u root -e "SELECT 1;" > $null 2>&1
+            if ($LASTEXITCODE -eq 0) { $connected = $true }
+          } catch {}
+          if (-not $connected) {
+            $env:MYSQL_PWD = 'test'
+            try {
+              & $mysqlPath -u root -e "SELECT 1;" > $null 2>&1
+              if ($LASTEXITCODE -eq 0) { $connected = $true }
+            } catch {}
+          }
+          if (-not $connected) {
+            $ready = $false
+            for ($i = 0; $i -lt 120; $i++) {
+              try {
+                & $mysqlPath -u root -e "SELECT 1;" > $null 2>&1
+                if ($LASTEXITCODE -eq 0) { $ready = $true; break }
+              } catch {}
+              Start-Sleep -Seconds 1
+            }
+            if (-not $ready) { Write-Host "MariaDB did not become ready"; exit 1 }
+          }
+
+          & $mysqlPath -u root -e "CREATE USER IF NOT EXISTS 'testuser'@'localhost' IDENTIFIED BY 'testpass';"
+          & $mysqlPath -u root -e "CREATE DATABASE IF NOT EXISTS stormbyte_test;"
+          & $mysqlPath -u root -e "GRANT ALL PRIVILEGES ON stormbyte_test.* TO 'testuser'@'localhost'; FLUSH PRIVILEGES;"
+
+      - name: Add DLL directories to PATH
+        shell: pwsh
+        run: |
+          echo "${{ github.workspace }}\build\lib" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          echo "${{ github.workspace }}\build\buildmaster\install\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Build with toolchain
+        uses: stormbytepp/githubactions/.github/actions/build-with-toolchain@master
+        with:
+          toolchain: clang-cl
+          ccache-key: v1-release-clang-cl
+          buildmaster-datadir-cache-key: bm-datadir-release-clang-cl
+          build-type: ${{ env.BUILD_TYPE }}
+          configure-options: >-
+            -DENABLE_LTO=ON
+            -DENABLE_PGO=ON
+            -DBUILD_SHARED_LIBS=ON
+            -DWITH_SQLITE=BUNDLED
+            -DWITH_POSTGRES=BUNDLED
+            -DWITH_MARIADB=BUNDLED
+            -DWITH_MSSQL=BUNDLED
+            -DWITH_OPENSSL=BUNDLED
+            -DWITH_STORMBYTE=BUNDLED
+          run-tests: false
+          install: true
+          install-location: package
+
+      - name: Zip the install prefix
+        id: zip
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="${{ github.event.repository.name }}-${{ github.ref_name }}-windows-x64.zip"
+          for notice in LICENSE COPYING.* THIRD-PARTY; do
+            if [[ -f "${notice}" ]]; then
+              cp "${notice}" package/
+            fi
+          done
+          (
+            cd package
+            cmake -E tar cf "../${name}" --format=zip -- .
+          )
+          echo "name=${name}" >> "$GITHUB_OUTPUT"
+          echo "Packed ${name}"
+          cmake -E tar tf "${name}"
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.zip.outputs.name }}
+          path: ${{ steps.zip.outputs.name }}
+          if-no-files-found: error
+
+  publish:
+    needs: [build-linux, build-macos, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download archives
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Attach archives to this tag's release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          tag="${{ github.ref_name }}"
+          shopt -s nullglob
+          files=(dist/*.zip)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::No archives to upload"
+            exit 1
+          fi
+          printf 'Uploading to %s:\n' "$tag"
+          printf '  %s\n' "${files[@]}"
+          gh release upload "$tag" "${files[@]}" --repo "$GH_REPO" --clobber
+
+  docs:
+    needs: [guard, checkout-bootstrap, apt-bootstrap]
+    uses: stormbytepp/githubactions/.github/workflows/generate-and-deploy-docs.yml@master
+    with:
+      doc_target: StormByteDatabaseDoc
+      extra-cmake-options: >-
+        -DENABLE_DOC=ON
+        -DWITH_SQLITE=BUNDLED
+        -DWITH_POSTGRES=OFF
+        -DWITH_MARIADB=OFF
+        -DWITH_MSSQL=OFF
+        -DWITH_STORMBYTE=BUNDLED
+      docs_output_dir: ./_site
