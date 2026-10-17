@@ -284,7 +284,7 @@ jobs:
             -DWITH_MSSQL=${{ matrix.dependencies }}
             ${{ matrix.dependencies != 'OFF' && format('-DWITH_OPENSSL={0}', matrix.dependencies) || '' }}
             -DWITH_STORMBYTE=BUNDLED
-            ${{ matrix.compiler == 'clang-libc++' && '-DCMAKE_CXX_FLAGS=-stdlib=libc++' || '' }}
+            ${{ matrix.compiler == 'clang-libc++' && '-DCMAKE_CXX_FLAGS=-stdlib=libc++ -DCMAKE_CXX_STANDARD_LIBRARIES=-stdlib=libc++' || '' }}
           run-tests: false
 
   ###########################################################################
