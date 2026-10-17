@@ -1,0 +1,35 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: "David C. Manuelda" <StormByte@gmail.com>
+Date: Sat, 17 Oct 2026 18:21:00 +0200
+Subject: [PATCH] Do not build mariadb_config
+
+The client library does not need the helper executable. Its main()
+collides with every other main in a merged Clang profile.
+
+---
+ CMakeLists.txt | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -36,6 +36,10 @@ ADD_OPTION(WITH_TOOLS
+            "Build tools"
+            OFF)
+ 
++ADD_OPTION(WITH_MARIADBCONFIG
++           "Build the mariadb_config executable"
++           OFF)
++
+ IF(WITH_BOOST_CONTEXT)
+   PROJECT(mariadb-connector-c LANGUAGES C CXX)
+ ELSE()
+@@ -522,7 +526,7 @@ ENDIF()
+ INCLUDE(${CC_SOURCE_DIR}/plugins/CMakeLists.txt)
+ ADD_SUBDIRECTORY(include)
+ ADD_SUBDIRECTORY(libmariadb)
+-IF((NOT WIN32) OR CYGWIN)
++IF(WITH_MARIADBCONFIG AND ((NOT WIN32) OR CYGWIN))
+   ADD_SUBDIRECTORY(mariadb_config)
+ ENDIF()
+ 

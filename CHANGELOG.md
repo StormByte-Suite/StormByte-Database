@@ -22,6 +22,10 @@ If you landed here from a release link and have not read the tree:
 
 ## [Unreleased]
 
+### Fixed
+
+- Bundled MariaDB Connector C no longer builds `mariadb_config`. `WITH_UNIT_TESTS=OFF` already skips the connector test suite, and `WITH_TOOLS` is off, but the helper executable is unconditional on Unix. Its `main` shares a name with the test programs in the merged Clang profile, so `-fprofile-use` reports a control-flow hash mismatch and the connector's `-Werror` aborts the build. The library does not use that executable.
+
 [Unreleased]: https://github.com/StormByte-Suite/StormByte-Database/compare/2.1.0...HEAD
 
 ## [2.0.2] - 2026-10-17
