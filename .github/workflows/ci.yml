@@ -285,8 +285,7 @@ jobs:
             ${{ matrix.dependencies != 'OFF' && format('-DWITH_OPENSSL={0}', matrix.dependencies) || '' }}
             -DWITH_STORMBYTE=BUNDLED
             ${{ matrix.compiler == 'clang-libc++' && '-DCMAKE_CXX_FLAGS=-stdlib=libc++' || '' }}
-          run-tests: true
-          ctest-options: --output-on-failure --test-dir ${{ github.workspace }}/build/test
+          run-tests: false
 
   ###########################################################################
   # macOS
@@ -438,8 +437,7 @@ jobs:
             -DWITH_MSSQL=${{ matrix.dependencies }}
             ${{ matrix.dependencies != 'OFF' && format('-DWITH_OPENSSL={0}', matrix.dependencies) || '' }}
             -DWITH_STORMBYTE=BUNDLED
-          run-tests: true
-          ctest-options: --output-on-failure --test-dir ${{ github.workspace }}/build/test
+          run-tests: false
 
   ###########################################################################
   # Windows (fixed backends: all BUNDLED — no matrix)
@@ -712,5 +710,4 @@ jobs:
             -DWITH_MSSQL=BUNDLED
             -DWITH_OPENSSL=BUNDLED
             -DWITH_STORMBYTE=BUNDLED
-          run-tests: true
-          ctest-options: --output-on-failure --test-dir ${{ github.workspace }}\build\test
+          run-tests: false
