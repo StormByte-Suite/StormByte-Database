@@ -196,7 +196,7 @@ namespace StormByte {
 					OperationGuard lock{*this};
 					PreparedSTMT *statement = FindPreparedSTMT(name);
 					if (!statement)
-						return Unexpected<UnknownSTMT>(name);
+						return Unexpected<UnknownSTMT>(UnknownSTMT(name));
 					ExpectedRows result = statement->Execute(std::forward<Args>(args)...);
 					telemetry.Complete(result.has_value(), result ? static_cast<std::uint64_t>(result->Count()) : std::uint64_t{0});
 					return result;
