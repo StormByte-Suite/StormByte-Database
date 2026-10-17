@@ -317,10 +317,8 @@ jobs:
       matrix:
         include:
           - compiler: clang
-            asset: macos-arm64-libc++
-          - compiler: gcc
-            asset: macos-arm64-libstdc++
-    name: macos-${{ matrix.asset }}
+            asset: macos-arm64
+    name: macos
     env:
       DYLD_LIBRARY_PATH: ${{ github.workspace }}/build/pgo-instr/lib:${{ github.workspace }}/build/pgo-instr/buildmaster/install/lib:${{ github.workspace }}/build/pgo-instr/buildmaster/install/lib64:${{ github.workspace }}/build/lib:${{ github.workspace }}/build/buildmaster/install/lib:${{ github.workspace }}/build/buildmaster/install/lib64
     steps:

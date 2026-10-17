@@ -296,7 +296,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        compiler: [gcc, clang]
+        compiler: [clang]
         dependencies: [OFF, BUNDLED, SYSTEM]
 
     name: macos-${{ matrix.compiler }}-${{ matrix.dependencies }}
