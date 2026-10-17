@@ -32,6 +32,10 @@ If you landed here from a release link and have not read the tree:
 - `THIRD-PARTY` (hyphenated: `THIRDPARTY` is the same path as the `thirdparty/` directory on Windows and macOS) plus `COPYING.SQLite`, `COPYING.PostgreSQL`, `COPYING.MariaDB`, `COPYING.FreeTDS` and `COPYING.OpenSSL`. The MSSQL objects are FreeTDS DB-Library, `tds`, `replacements` and `tdsutils` only, under the GNU Library General Public License v2 or later. The FreeTDS server, ODBC driver, CT-Library and tools are not compiled in. OpenSSL 3.5.9 is compiled in because those clients link it.
 - `ENABLE_LTO` and `ENABLE_PGO`. CI keeps the compiler and dependency matrix and turns both on. Documentation is published from the release workflow, not from every push.
 
+### Fixed
+
+- Bundled PostgreSQL on Windows is built without LTO. MSVC LTCG left `postgres.lib` without the backend exports, so `libpqwalreceiver.dll` failed to link (`ResetLatch`, `ProcessInterrupts` and the rest). The client archives are still static.
+
 ### Changed
 
 - **Breaking**: Database exceptions no longer call `std::format`. Literal `{}` is replaced by `Safe::String::ReplaceToken`, the same way Base, Config and Logger do it. `what()` paths are unchanged (`StormByte.Database.Connection`, `StormByte.Database.Query.Execute`, and the rest). Copy, move and each destructor stay in this module.
