@@ -34,6 +34,7 @@ If you landed here from a release link and have not read the tree:
 
 ### Fixed
 
+- MSVC PGO no longer puts `/LTCG:PGINSTRUMENT` or `/LTCG:PGOPTIMIZE` in `CMAKE_EXE_LINKER_FLAGS`. Those flags are `add_link_options` on this project. A nested `project()` inherits the cache and its compiler test links `cmTC_*.exe`, which was never instrumented, so `/LTCG:PGOPTIMIZE` aborted with LNK1266 (`cmTC_*.pgd` missing). The cache keeps a bare `/LTCG` so those `/GL` objects still link. A static dependency stays LTCG and is optimized by the link that owns the `.pgd`.
 - Bundled PostgreSQL on Windows is built without LTO. MSVC LTCG left `postgres.lib` without the backend exports, so `libpqwalreceiver.dll` failed to link (`ResetLatch`, `ProcessInterrupts` and the rest). The client archives are still static.
 
 ### Changed
