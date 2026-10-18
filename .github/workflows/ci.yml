@@ -293,7 +293,7 @@ jobs:
           build-type: ${{ env.BUILD_TYPE }}
           configure-options: >-
             -DENABLE_LTO=ON
-            -DENABLE_PGO=ON
+            -DENABLE_PGO=OFF
             -DENABLE_TEST=ON
             -DBUILD_SHARED_LIBS=ON
             -DWITH_SQLITE=${{ matrix.dependencies }}
@@ -303,7 +303,8 @@ jobs:
             ${{ matrix.dependencies != 'OFF' && format('-DWITH_OPENSSL={0}', matrix.dependencies) || '' }}
             -DWITH_STORMBYTE=BUNDLED
             ${{ matrix.compiler == 'clang-libc++' && '-DCMAKE_CXX_FLAGS=-stdlib=libc++ -DCMAKE_CXX_STANDARD_LIBRARIES=-stdlib=libc++' || '' }}
-          run-tests: false
+          run-tests: true
+          ctest-options: --output-on-failure --test-dir ${{ github.workspace }}/build/test
 
   ###########################################################################
   # macOS
@@ -461,7 +462,7 @@ jobs:
           build-type: ${{ env.BUILD_TYPE }}
           configure-options: >-
             -DENABLE_LTO=ON
-            -DENABLE_PGO=ON
+            -DENABLE_PGO=OFF
             -DENABLE_TEST=ON
             -DBUILD_SHARED_LIBS=ON
             -DWITH_SQLITE=${{ matrix.dependencies }}
@@ -470,7 +471,8 @@ jobs:
             -DWITH_MSSQL=${{ matrix.dependencies }}
             ${{ matrix.dependencies != 'OFF' && format('-DWITH_OPENSSL={0}', matrix.dependencies) || '' }}
             -DWITH_STORMBYTE=BUNDLED
-          run-tests: false
+          run-tests: true
+          ctest-options: --output-on-failure --test-dir ${{ github.workspace }}/build/test
 
   ###########################################################################
   # Windows (fixed backends: all BUNDLED — no matrix)
@@ -734,7 +736,7 @@ jobs:
           build-type: ${{ env.BUILD_TYPE }}
           configure-options: >-
             -DENABLE_LTO=ON
-            -DENABLE_PGO=ON
+            -DENABLE_PGO=OFF
             -DENABLE_TEST=ON
             -DBUILD_SHARED_LIBS=ON
             -DWITH_SQLITE=BUNDLED
@@ -743,4 +745,5 @@ jobs:
             -DWITH_MSSQL=BUNDLED
             -DWITH_OPENSSL=BUNDLED
             -DWITH_STORMBYTE=BUNDLED
-          run-tests: false
+          run-tests: true
+          ctest-options: --output-on-failure --test-dir ${{ github.workspace }}\build\test
