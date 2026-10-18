@@ -92,6 +92,12 @@ jobs:
       MSSQL_PASSWORD: "StormByte!Mssql2026"
       MSSQL_DATABASE: master
       MSSQL_PORT: 1433
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpass
+      POSTGRES_PORT: 5432
+      MARIADB_USER: testuser
+      MARIADB_PASSWORD: testpass
+      MARIADB_PORT: 3306
 
     steps:
       - name: Checkout repository and submodules
@@ -333,6 +339,12 @@ jobs:
       MSSQL_PORT: ${{ vars.MSSQL_PORT || '1433' }}
       MSSQL_TAILSCALE_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
       MSSQL_TAILSCALE_AUDIENCE: ${{ secrets.TS_AUDIENCE }}
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpass
+      POSTGRES_PORT: 5432
+      MARIADB_USER: testuser
+      MARIADB_PASSWORD: testpass
+      MARIADB_PORT: 3306
 
     steps:
       - name: Checkout repository and submodules
@@ -503,6 +515,12 @@ jobs:
       MSSQL_PORT: ${{ vars.MSSQL_PORT || '1433' }}
       MSSQL_TAILSCALE_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
       MSSQL_TAILSCALE_AUDIENCE: ${{ secrets.TS_AUDIENCE }}
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpass
+      POSTGRES_PORT: 5432
+      MARIADB_USER: testuser
+      MARIADB_PASSWORD: testpass
+      MARIADB_PORT: 3306
 
     steps:
       - name: Enable long paths for recursive checkout

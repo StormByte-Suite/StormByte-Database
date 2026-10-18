@@ -104,6 +104,12 @@ jobs:
       MSSQL_PASSWORD: "StormByte!Mssql2026"
       MSSQL_DATABASE: master
       MSSQL_PORT: 1433
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpass
+      POSTGRES_PORT: 5432
+      MARIADB_USER: testuser
+      MARIADB_PASSWORD: testpass
+      MARIADB_PORT: 3306
     steps:
       - name: Checkout repository and submodules
         uses: stormbytepp/githubactions/.github/actions/checkout-cached@master
@@ -338,6 +344,13 @@ jobs:
           - compiler: clang
             asset: macos-arm64
     name: macos
+    env:
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpass
+      POSTGRES_PORT: 5432
+      MARIADB_USER: testuser
+      MARIADB_PASSWORD: testpass
+      MARIADB_PORT: 3306
     steps:
       - name: Checkout repository and submodules
         uses: stormbytepp/githubactions/.github/actions/checkout-cached@master
@@ -482,6 +495,12 @@ jobs:
     name: windows-clang-cl
     env:
       PG_VERSION: "18.6-1"
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpass
+      POSTGRES_PORT: 5432
+      MARIADB_USER: testuser
+      MARIADB_PASSWORD: testpass
+      MARIADB_PORT: 3306
     steps:
       - name: Checkout repository and submodules
         uses: stormbytepp/githubactions/.github/actions/checkout-cached@master

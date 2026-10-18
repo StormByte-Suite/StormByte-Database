@@ -51,7 +51,9 @@
 #include <thread>
 #include <chrono>
 #include <atomic>
+#include <cstdlib>
 #include <future>
+#include <string>
 using ExpectedRows = StormByte::Database::ExpectedRows;
 using namespace StormByte::Database::Postgres;
 using StormByte::Database::IsolationLevel;
@@ -59,12 +61,35 @@ using StormByte::Database::Transaction;
 using StormByte::Database::ColumnNotFound;
 using StormByte::Database::OutOfBounds;
 using StormByte::Database::SslMode;
+
+namespace {
+	std::string EnvironmentValue(const char* const name, const char* const fallback) {
+	#ifdef _WIN32
+		char* value = nullptr;
+		std::size_t length = 0;
+		if (_dupenv_s(&value, &length, name) != 0 || !value)
+			return fallback;
+		std::string result{value};
+		std::free(value);
+		return result;
+	#else
+		const char* const value = std::getenv(name);
+		return value ? value : fallback;
+	#endif
+	}
+}
+
 StormByte::Safe::Shared<StormByte::Logger::Log> logger =
 	StormByte::Safe::Shared<StormByte::Logger::Log>::MakePointer<StormByte::Logger::ThreadedLog>(std::cout, StormByte::Logger::Level::Info);
 class TestDatabase : public Postgres {
 	public:
 		TestDatabase()
-			: Postgres("localhost", "testuser", "testpass", "stormbyte_test", logger) {
+			: Postgres("localhost",
+				EnvironmentValue("POSTGRES_USER", "testuser"),
+				EnvironmentValue("POSTGRES_PASSWORD", "testpass"),
+				"stormbyte_test",
+				logger,
+				std::stoi(EnvironmentValue("POSTGRES_PORT", "5432"))) {
 			SslMode(SslMode::Disable);
 		}
 
@@ -110,7 +135,12 @@ class TestDatabase : public Postgres {
 class ConcurrentDatabase : public Postgres {
 	public:
 		ConcurrentDatabase()
-			: Postgres("localhost", "testuser", "testpass", "stormbyte_test", logger) {
+			: Postgres("localhost",
+				EnvironmentValue("POSTGRES_USER", "testuser"),
+				EnvironmentValue("POSTGRES_PASSWORD", "testpass"),
+				"stormbyte_test",
+				logger,
+				std::stoi(EnvironmentValue("POSTGRES_PORT", "5432"))) {
 			SslMode(SslMode::Disable);
 		}
 

@@ -39,12 +39,14 @@ If you landed here from a release link and have not read the tree:
 - MSVC PGO no longer puts `/LTCG:PGINSTRUMENT` or `/LTCG:PGOPTIMIZE` in `CMAKE_EXE_LINKER_FLAGS`. Those flags are `add_link_options` on this project. A nested `project()` inherits the cache and its compiler test links `cmTC_*.exe`, which was never instrumented, so `/LTCG:PGOPTIMIZE` aborted with LNK1266 (`cmTC_*.pgd` missing). The cache keeps a bare `/LTCG` so those `/GL` objects still link. A static dependency stays LTCG and is optimized by the link that owns the `.pgd`.
 - Bundled PostgreSQL on Windows is built without LTO. MSVC LTCG left `postgres.lib` without the backend exports, so `libpqwalreceiver.dll` failed to link (`ResetLatch`, `ProcessInterrupts` and the rest). The client archives are still static.
 - Clang PGO drops `.profraw` files left by compiler probes before ctest, and `llvm-profdata merge` uses `-failure-mode=all`. A probe writes a few hundred bytes for `main`, with a padded empty symbol name. The default failure mode is `any`, so that one file aborted the merge even after the instrumented tests had passed.
+- `Postgres` sends `port` to `PQconnectdbParams`. The connection used to omit it, so libpq used 5432 or `PGPORT` instead of the port this object was given. The constructor takes the port after the logger and defaults to 5432. Callers that do not pass it stay source-compatible.
 
 ### Changed
 
 - CI builds with `ENABLE_LTO=ON`, `ENABLE_PGO=OFF` and `ENABLE_TEST=ON`, then runs ctest. Profile-guided optimization stays on the release workflow.
 - **Breaking**: Database exceptions no longer call `std::format`. Literal `{}` is replaced by `Safe::String::ReplaceToken`, the same way Base, Config and Logger do it. `what()` paths are unchanged (`StormByte.Database.Connection`, `StormByte.Database.Query.Execute`, and the rest). Copy, move and each destructor stay in this module.
 - StormByte Base 2.1.0 and StormByte-Logger 2.0.2 are downloaded release archives (`BACKEND=binary`). The Logger source tree is no longer a submodule. BuildMaster 2.1.0 is required. `optimizations.cmake` matches the other modules: Linux `x86-64-v3`, Apple `apple-m1`, Windows `/O2 /arch:AVX2`. No `/fp:fast`.
+- Postgres and MariaDB tests read the account from the environment. `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_PORT` default to `testuser`, `testpass` and `5432`. `MARIADB_USER`, `MARIADB_PASSWORD` and `MARIADB_PORT` default to `testuser`, `testpass` and `3306`. The host and the database name stay `localhost` or `127.0.0.1`, and `stormbyte_test`.
 
 [2.0.2]: https://github.com/StormByte-Suite/StormByte-Database/compare/2.0.1...2.0.2
 

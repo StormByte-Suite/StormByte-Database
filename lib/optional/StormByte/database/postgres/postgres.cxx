@@ -64,16 +64,16 @@ namespace {
 }
 
 Postgres::Postgres(std::string_view host, std::string_view user, std::string_view password,
-				std::string_view db_name, const StormByte::Safe::Shared<Logger::Log>& logger)
+				std::string_view db_name, const StormByte::Safe::Shared<Logger::Log>& logger, int port)
 	: Database(logger), m_host(host), m_user(user), m_password(password),
-	m_dbname(db_name),
+	m_dbname(db_name), m_port(port),
 	m_connection_handle(StormByte::Safe::Unique<ConnectionHandle>::MakePointer<ConnectionHandle>()) {
 	Telemetry(StormByte::Safe::Shared<StormByte::Database::Telemetry>::MakePointer<StormByte::Database::Postgres::Telemetry>());
 }
 
 Postgres::Postgres(Postgres&& db) noexcept
 	: Database(std::move(db)), m_host(std::move(db.m_host)), m_user(std::move(db.m_user)),
-	m_password(std::move(db.m_password)), m_dbname(std::move(db.m_dbname)),
+	m_password(std::move(db.m_password)), m_dbname(std::move(db.m_dbname)), m_port(db.m_port),
 	m_connection_handle(std::move(db.m_connection_handle)) {
 	db.m_connected = false;
 }
@@ -86,6 +86,7 @@ Postgres& Postgres::operator=(Postgres&& db) noexcept {
 		m_user = std::move(db.m_user);
 		m_password = std::move(db.m_password);
 		m_dbname = std::move(db.m_dbname);
+		m_port = db.m_port;
 		m_connection_handle = std::move(db.m_connection_handle);
 		db.m_connected = false;
 	}
@@ -125,9 +126,11 @@ bool Postgres::DoConnect() noexcept {
 			break;
 	}
 
-	const char* keywords[] = {"host", "user", "password", "dbname", "sslmode", nullptr};
+	const std::string port = std::to_string(m_port);
+	const char* keywords[] = {"host", "port", "user", "password", "dbname", "sslmode", nullptr};
 	const char* values[] = {
 		m_host.empty() ? nullptr : m_host.Bytes(),
+		port.c_str(),
 		m_user.empty() ? nullptr : m_user.Bytes(),
 		m_password.empty() ? nullptr : m_password.Bytes(),
 		m_dbname.empty() ? nullptr : m_dbname.Bytes(),

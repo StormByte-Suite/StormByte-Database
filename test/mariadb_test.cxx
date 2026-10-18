@@ -45,14 +45,16 @@
 #include <StormByte/logger/threaded_log.hxx>
 #include <StormByte/test_handlers.h>
 #include "backend_contract.hxx"
-#include <memory>
-#include <iostream>
-#include <vector>
-#include <thread>
-#include <chrono>
-#include <limits>
 #include <atomic>
+#include <chrono>
+#include <cstdlib>
 #include <future>
+#include <iostream>
+#include <limits>
+#include <memory>
+#include <string>
+#include <thread>
+#include <vector>
 using ExpectedRows = StormByte::Database::ExpectedRows;
 using namespace StormByte::Database::MariaDB;
 using StormByte::Database::IsolationLevel;
@@ -60,12 +62,35 @@ using StormByte::Database::Transaction;
 using StormByte::Database::ColumnNotFound;
 using StormByte::Database::OutOfBounds;
 using StormByte::Database::SslMode;
+
+namespace {
+	std::string EnvironmentValue(const char* const name, const char* const fallback) {
+	#ifdef _WIN32
+		char* value = nullptr;
+		std::size_t length = 0;
+		if (_dupenv_s(&value, &length, name) != 0 || !value)
+			return fallback;
+		std::string result{value};
+		std::free(value);
+		return result;
+	#else
+		const char* const value = std::getenv(name);
+		return value ? value : fallback;
+	#endif
+	}
+}
+
 StormByte::Safe::Shared<StormByte::Logger::Log> logger =
 	StormByte::Safe::Shared<StormByte::Logger::Log>::MakePointer<StormByte::Logger::ThreadedLog>(std::cout, StormByte::Logger::Level::Info);
 class TestDatabase : public MariaDB {
 	public:
 		TestDatabase()
-			: MariaDB("127.0.0.1", "testuser", "testpass", "stormbyte_test", 3306, logger) {
+			: MariaDB("127.0.0.1",
+				EnvironmentValue("MARIADB_USER", "testuser"),
+				EnvironmentValue("MARIADB_PASSWORD", "testpass"),
+				"stormbyte_test",
+				std::stoi(EnvironmentValue("MARIADB_PORT", "3306")),
+				logger) {
 			SslMode(SslMode::Disable);
 		}
 
@@ -128,7 +153,12 @@ class TestDatabase : public MariaDB {
 class ConcurrentDatabase : public MariaDB {
 	public:
 		ConcurrentDatabase()
-			: MariaDB("127.0.0.1", "testuser", "testpass", "stormbyte_test", 3306, logger) {
+			: MariaDB("127.0.0.1",
+				EnvironmentValue("MARIADB_USER", "testuser"),
+				EnvironmentValue("MARIADB_PASSWORD", "testpass"),
+				"stormbyte_test",
+				std::stoi(EnvironmentValue("MARIADB_PORT", "3306")),
+				logger) {
 			SslMode(SslMode::Disable);
 		}
 

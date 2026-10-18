@@ -127,9 +127,11 @@ namespace StormByte {
 					 * @param password Password.
 					 * @param db_name Database name.
 					 * @param logger Logger instance.
+					 * @param port TCP port. Sent on every connect. The default is 5432.
 					 */
 					Postgres(std::string_view host, std::string_view user, std::string_view password,
-									 std::string_view db_name, const StormByte::Safe::Shared<Logger::Log>& logger);
+									 std::string_view db_name, const StormByte::Safe::Shared<Logger::Log>& logger,
+									 int port = 5432);
 
 					/**
 					 * @brief Internal silent query.
@@ -143,6 +145,7 @@ namespace StormByte {
 					StormByte::Safe::String m_user;		///< Base-owned user
 					StormByte::Safe::String m_password;	///< Base-owned password
 					StormByte::Safe::String m_dbname;		///< Base-owned database name
+					int m_port;						///< TCP port sent to libpq
 					StormByte::Safe::Unique<ConnectionHandle> m_connection_handle; ///< Opaque owner for the native PostgreSQL connection.
 
 					/**
