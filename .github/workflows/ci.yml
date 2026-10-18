@@ -87,7 +87,6 @@ jobs:
     name: linux-${{ matrix.compiler }}-${{ matrix.dependencies }}
 
     env:
-      LD_LIBRARY_PATH: ${{ github.workspace }}/build/lib:${{ github.workspace }}/build/buildmaster/install/lib:${{ github.workspace }}/build/buildmaster/install/lib64
       MSSQL_HOST: 127.0.0.1
       MSSQL_USER: sa
       MSSQL_PASSWORD: "StormByte!Mssql2026"
@@ -266,6 +265,25 @@ jobs:
           docker logs "$MSSQL_CONTAINER_ID"
           exit 1
 
+      - name: Add shared library directories
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Prepend. A job-level assignment replaces the variable and
+          # drops whatever the runner or a previous step already set.
+          # /usr/lib/llvm-20/lib holds LLVM libunwind. libc++ needs it
+          # and the default loader does not search that directory.
+          # The toolchain creates it later; tests only need the entry.
+          extra="/usr/lib/llvm-20/lib:${{ github.workspace }}/build/lib:${{ github.workspace }}/build/buildmaster/install/lib:${{ github.workspace }}/build/buildmaster/install/lib64"
+          for name in LD_LIBRARY_PATH DYLD_LIBRARY_PATH; do
+            current="$(printenv "$name" 2>/dev/null || true)"
+            if [[ -n "${current}" ]]; then
+              echo "${name}=${extra}:${current}" >> "$GITHUB_ENV"
+            else
+              echo "${name}=${extra}" >> "$GITHUB_ENV"
+            fi
+          done
+
       - name: Build with toolchain
         uses: stormbytepp/githubactions/.github/actions/build-with-toolchain@master
         with:
@@ -302,7 +320,6 @@ jobs:
     name: macos-${{ matrix.compiler }}-${{ matrix.dependencies }}
 
     env:
-      DYLD_LIBRARY_PATH: ${{ github.workspace }}/build/lib:${{ github.workspace }}/build/buildmaster/install/lib:${{ github.workspace }}/build/buildmaster/install/lib64
       MSSQL_HOST: ${{ github.ref == 'refs/heads/master' && secrets.TS_OAUTH_CLIENT_ID != '' && secrets.TS_AUDIENCE != '' && vars.MSSQL_REMOTE_HOST || '' }}
       MSSQL_USER: ${{ secrets.MSSQL_USER }}
       MSSQL_PASSWORD: ${{ secrets.MSSQL_PASSWORD }}
@@ -418,6 +435,22 @@ jobs:
           audience: ${{ env.MSSQL_TAILSCALE_AUDIENCE }}
           tags: tag:ci
           ping: ${{ env.MSSQL_HOST }}
+
+      - name: Add shared library directories
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Prepend. A job-level assignment replaces the variable and
+          # drops whatever the runner or a previous step already set.
+          extra="${{ github.workspace }}/build/lib:${{ github.workspace }}/build/buildmaster/install/lib:${{ github.workspace }}/build/buildmaster/install/lib64"
+          for name in LD_LIBRARY_PATH DYLD_LIBRARY_PATH; do
+            current="$(printenv "$name" 2>/dev/null || true)"
+            if [[ -n "${current}" ]]; then
+              echo "${name}=${extra}:${current}" >> "$GITHUB_ENV"
+            else
+              echo "${name}=${extra}" >> "$GITHUB_ENV"
+            fi
+          done
 
       - name: Build with toolchain
         uses: stormbytepp/githubactions/.github/actions/build-with-toolchain@master

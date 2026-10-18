@@ -99,7 +99,6 @@ jobs:
             asset: linux-x64-libc++
     name: linux-${{ matrix.stdlib }}
     env:
-      LD_LIBRARY_PATH: ${{ github.workspace }}/build/pgo-instr/lib:${{ github.workspace }}/build/pgo-instr/buildmaster/install/lib:${{ github.workspace }}/build/pgo-instr/buildmaster/install/lib64:${{ github.workspace }}/build/lib:${{ github.workspace }}/build/buildmaster/install/lib:${{ github.workspace }}/build/buildmaster/install/lib64
       MSSQL_HOST: 127.0.0.1
       MSSQL_USER: sa
       MSSQL_PASSWORD: "StormByte!Mssql2026"
@@ -261,6 +260,25 @@ jobs:
           docker logs "$MSSQL_CONTAINER_ID"
           exit 1
 
+      - name: Add shared library directories
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Prepend. A job-level assignment replaces the variable and
+          # drops whatever the runner or a previous step already set.
+          # /usr/lib/llvm-20/lib holds LLVM libunwind. libc++ needs it
+          # and the default loader does not search that directory.
+          # The toolchain creates it later; tests only need the entry.
+          extra="/usr/lib/llvm-20/lib:${{ github.workspace }}/build/pgo-instr/lib:${{ github.workspace }}/build/pgo-instr/buildmaster/install/lib:${{ github.workspace }}/build/pgo-instr/buildmaster/install/lib64:${{ github.workspace }}/build/lib:${{ github.workspace }}/build/buildmaster/install/lib:${{ github.workspace }}/build/buildmaster/install/lib64"
+          for name in LD_LIBRARY_PATH DYLD_LIBRARY_PATH; do
+            current="$(printenv "$name" 2>/dev/null || true)"
+            if [[ -n "${current}" ]]; then
+              echo "${name}=${extra}:${current}" >> "$GITHUB_ENV"
+            else
+              echo "${name}=${extra}" >> "$GITHUB_ENV"
+            fi
+          done
+
       - name: Build with toolchain
         uses: stormbytepp/githubactions/.github/actions/build-with-toolchain@master
         with:
@@ -320,8 +338,6 @@ jobs:
           - compiler: clang
             asset: macos-arm64
     name: macos
-    env:
-      DYLD_LIBRARY_PATH: ${{ github.workspace }}/build/pgo-instr/lib:${{ github.workspace }}/build/pgo-instr/buildmaster/install/lib:${{ github.workspace }}/build/pgo-instr/buildmaster/install/lib64:${{ github.workspace }}/build/lib:${{ github.workspace }}/build/buildmaster/install/lib:${{ github.workspace }}/build/buildmaster/install/lib64
     steps:
       - name: Checkout repository and submodules
         uses: stormbytepp/githubactions/.github/actions/checkout-cached@master
@@ -396,6 +412,22 @@ jobs:
           mysql -u "$ADMIN_USER" -e "CREATE USER IF NOT EXISTS 'testuser'@'localhost' IDENTIFIED BY 'testpass';"
           mysql -u "$ADMIN_USER" -e "CREATE DATABASE IF NOT EXISTS stormbyte_test;"
           mysql -u "$ADMIN_USER" -e "GRANT ALL PRIVILEGES ON stormbyte_test.* TO 'testuser'@'localhost'; FLUSH PRIVILEGES;"
+
+      - name: Add shared library directories
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Prepend. A job-level assignment replaces the variable and
+          # drops whatever the runner or a previous step already set.
+          extra="${{ github.workspace }}/build/pgo-instr/lib:${{ github.workspace }}/build/pgo-instr/buildmaster/install/lib:${{ github.workspace }}/build/pgo-instr/buildmaster/install/lib64:${{ github.workspace }}/build/lib:${{ github.workspace }}/build/buildmaster/install/lib:${{ github.workspace }}/build/buildmaster/install/lib64"
+          for name in LD_LIBRARY_PATH DYLD_LIBRARY_PATH; do
+            current="$(printenv "$name" 2>/dev/null || true)"
+            if [[ -n "${current}" ]]; then
+              echo "${name}=${extra}:${current}" >> "$GITHUB_ENV"
+            else
+              echo "${name}=${extra}" >> "$GITHUB_ENV"
+            fi
+          done
 
       - name: Build with toolchain
         uses: stormbytepp/githubactions/.github/actions/build-with-toolchain@master
