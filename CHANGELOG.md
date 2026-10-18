@@ -22,19 +22,15 @@ If you landed here from a release link and have not read the tree:
 
 ## [Unreleased]
 
-### Changed
+[Unreleased]: https://github.com/StormByte-Suite/StormByte-Database/compare/2.0.2...HEAD
 
-- CI builds with `ENABLE_LTO=ON`, `ENABLE_PGO=OFF` and `ENABLE_TEST=ON`, then runs ctest. Profile-guided optimization stays on the release workflow.
-
-[Unreleased]: https://github.com/StormByte-Suite/StormByte-Database/compare/2.1.0...HEAD
-
-## [2.0.2] - 2026-10-17
+## [2.0.2] - 2026-10-18
 
 ### Added
 
 - Release workflow. The archive name is `StormByte-Database-<tag>-<os>-<arch>[-stdlib].zip`. The build compiles SQLite, PostgreSQL, MariaDB and the MSSQL client, and starts PostgreSQL and MariaDB before the build so PGO training can run those tests. On Linux the MSSQL container is started as well. macOS and Windows have no SQL Server during a tag build, so that test skips.
 - `THIRD-PARTY` (hyphenated: `THIRDPARTY` is the same path as the `thirdparty/` directory on Windows and macOS) plus `COPYING.SQLite`, `COPYING.PostgreSQL`, `COPYING.MariaDB`, `COPYING.FreeTDS` and `COPYING.OpenSSL`. The MSSQL objects are FreeTDS DB-Library, `tds`, `replacements` and `tdsutils` only, under the GNU Library General Public License v2 or later. The FreeTDS server, ODBC driver, CT-Library and tools are not compiled in. OpenSSL 3.5.9 is compiled in because those clients link it.
-- `ENABLE_LTO` and `ENABLE_PGO`. CI keeps the compiler and dependency matrix and turns both on. Documentation is published from the release workflow, not from every push.
+- `ENABLE_LTO` and `ENABLE_PGO`. CI keeps the compiler and dependency matrix, turns LTO on and runs the tests. Profile-guided optimization, and the documentation, stay on the release workflow.
 
 ### Fixed
 
@@ -45,10 +41,11 @@ If you landed here from a release link and have not read the tree:
 
 ### Changed
 
+- CI builds with `ENABLE_LTO=ON`, `ENABLE_PGO=OFF` and `ENABLE_TEST=ON`, then runs ctest. Profile-guided optimization stays on the release workflow.
 - **Breaking**: Database exceptions no longer call `std::format`. Literal `{}` is replaced by `Safe::String::ReplaceToken`, the same way Base, Config and Logger do it. `what()` paths are unchanged (`StormByte.Database.Connection`, `StormByte.Database.Query.Execute`, and the rest). Copy, move and each destructor stay in this module.
 - StormByte Base 2.1.0 and StormByte-Logger 2.0.2 are downloaded release archives (`BACKEND=binary`). The Logger source tree is no longer a submodule. BuildMaster 2.1.0 is required. `optimizations.cmake` matches the other modules: Linux `x86-64-v3`, Apple `apple-m1`, Windows `/O2 /arch:AVX2`. No `/fp:fast`.
 
-[2.1.0]: https://github.com/StormByte-Suite/StormByte-Database/compare/2.0.1...2.1.0
+[2.0.2]: https://github.com/StormByte-Suite/StormByte-Database/compare/2.0.1...2.0.2
 
 ## [2.0.1] - 2026-10-13
 
