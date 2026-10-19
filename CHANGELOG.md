@@ -22,10 +22,6 @@ If you landed here from a release link and have not read the tree:
 
 ## [Unreleased]
 
-### Fixed
-
-- `InstalledConsumerSmoke` also searches the directory of a system `StormByte-Logger`. `WITH_STORMBYTE=SYSTEM` does not copy that library into the BuildMaster prefix, so the smoke test failed configure with `Could not find LOGGER_LIBRARY` and aborted PGO.
-
 [Unreleased]: https://github.com/StormByte-Suite/StormByte-Database/compare/2.0.2...HEAD
 
 ## [2.0.2] - 2026-10-19
@@ -38,6 +34,7 @@ If you landed here from a release link and have not read the tree:
 
 ### Fixed
 
+- `InstalledConsumerSmoke` also searches the directory of a system `StormByte-Logger`. `WITH_STORMBYTE=SYSTEM` does not copy that library into the BuildMaster prefix, so the smoke test failed configure with `Could not find LOGGER_LIBRARY` and aborted PGO.
 - `-stdlib=libc++` and `-stdlib=libstdc++` do not count as custom C++ flags. If either is the only extra flag, Release still gets `-O2` and the CPU baseline.
 - Bundled MariaDB Connector C no longer builds `mariadb_config`. `WITH_UNIT_TESTS=OFF` already skips the connector test suite, and `WITH_TOOLS` is off, but the helper executable is unconditional on Unix. Its `main` shares a name with the test programs in the merged Clang profile, so `-fprofile-use` reports a control-flow hash mismatch and the connector's `-Werror` aborts the build. The library does not use that executable.
 - MSVC PGO no longer puts `/LTCG:PGINSTRUMENT` or `/LTCG:PGOPTIMIZE` in `CMAKE_EXE_LINKER_FLAGS`. Those flags are `add_link_options` on this project. A nested `project()` inherits the cache and its compiler test links `cmTC_*.exe`, which was never instrumented, so `/LTCG:PGOPTIMIZE` aborted with LNK1266 (`cmTC_*.pgd` missing). The cache keeps a bare `/LTCG` so those `/GL` objects still link. A static dependency stays LTCG and is optimized by the link that owns the `.pgd`.
