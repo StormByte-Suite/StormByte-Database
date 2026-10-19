@@ -20,12 +20,14 @@ cmake_minimum_required(VERSION 3.28)
 project(StormByteDatabaseInstalledConsumer LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+string(REPLACE "|" ";" DEPENDENCY_LIBRARY_DIR "${DEPENDENCY_LIBRARY_DIR}")
+string(REPLACE "|" ";" DEPENDENCY_INCLUDE_DIR "${DEPENDENCY_INCLUDE_DIR}")
 find_library(DATABASE_LIBRARY NAMES StormByte-Database PATHS "${DATABASE_LIBRARY_DIR}" NO_DEFAULT_PATH REQUIRED)
-find_library(LOGGER_LIBRARY NAMES StormByte-Logger PATHS "${DEPENDENCY_LIBRARY_DIR}" NO_DEFAULT_PATH REQUIRED)
-find_library(BASE_LIBRARY NAMES StormByte PATHS "${DEPENDENCY_LIBRARY_DIR}" NO_DEFAULT_PATH REQUIRED)
+find_library(LOGGER_LIBRARY NAMES StormByte-Logger PATHS ${DEPENDENCY_LIBRARY_DIR} NO_DEFAULT_PATH REQUIRED)
+find_library(BASE_LIBRARY NAMES StormByte PATHS ${DEPENDENCY_LIBRARY_DIR} NO_DEFAULT_PATH REQUIRED)
 add_executable(InstalledConsumer "${DATABASE_SOURCE_DIR}/test/install_consumer.cxx")
 target_include_directories(InstalledConsumer PRIVATE "${DATABASE_INCLUDE_DIR}")
-target_include_directories(InstalledConsumer SYSTEM PRIVATE "${DEPENDENCY_INCLUDE_DIR}")
+target_include_directories(InstalledConsumer SYSTEM PRIVATE ${DEPENDENCY_INCLUDE_DIR})
 target_link_libraries(InstalledConsumer PRIVATE "${DATABASE_LIBRARY}" "${LOGGER_LIBRARY}" "${BASE_LIBRARY}")
 set_target_properties(InstalledConsumer PROPERTIES BUILD_RPATH "${DATABASE_LIBRARY_DIR};${DEPENDENCY_LIBRARY_DIR}")
 if(ENABLE_SQLITE)
@@ -42,12 +44,23 @@ set(_dependency_prefix "${DATABASE_BINARY_DIR}/stormbyte-buildmaster/install")
 if(NOT IS_DIRECTORY "${_dependency_prefix}")
 	set(_dependency_prefix "${DATABASE_BINARY_DIR}/buildmaster/install")
 endif()
+set(_dependency_lib_dirs "${_dependency_prefix}/${DATABASE_INSTALL_LIBDIR}")
+set(_dependency_include_dirs "${_dependency_prefix}/include")
+# A SYSTEM StormByte is not copied into the BuildMaster prefix.
+if(DEFINED DATABASE_SYSTEM_LIBRARY_DIR AND NOT DATABASE_SYSTEM_LIBRARY_DIR STREQUAL "")
+	list(APPEND _dependency_lib_dirs "${DATABASE_SYSTEM_LIBRARY_DIR}")
+endif()
+if(DEFINED DATABASE_SYSTEM_INCLUDE_DIR AND NOT DATABASE_SYSTEM_INCLUDE_DIR STREQUAL "")
+	list(APPEND _dependency_include_dirs "${DATABASE_SYSTEM_INCLUDE_DIR}")
+endif()
+string(REPLACE ";" "|" _dependency_lib_dirs_arg "${_dependency_lib_dirs}")
+string(REPLACE ";" "|" _dependency_include_dirs_arg "${_dependency_include_dirs}")
 set(_configure_command "${CMAKE_COMMAND}" -S "${_consumer_source}" -B "${_consumer_build}" -G "${DATABASE_GENERATOR}"
 	"-DDATABASE_SOURCE_DIR=${DATABASE_SOURCE_DIR}"
 	"-DDATABASE_INCLUDE_DIR=${_install_prefix}/include"
-	"-DDEPENDENCY_INCLUDE_DIR=${_dependency_prefix}/include"
+	"-DDEPENDENCY_INCLUDE_DIR=${_dependency_include_dirs_arg}"
 	"-DDATABASE_LIBRARY_DIR=${_database_lib_dir}"
-	"-DDEPENDENCY_LIBRARY_DIR=${_dependency_prefix}/${DATABASE_INSTALL_LIBDIR}"
+	"-DDEPENDENCY_LIBRARY_DIR=${_dependency_lib_dirs_arg}"
 	"-DENABLE_SQLITE=${DATABASE_ENABLE_SQLITE}"
 	"-DCMAKE_CXX_COMPILER=${DATABASE_CXX_COMPILER}"
 )

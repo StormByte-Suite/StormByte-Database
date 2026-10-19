@@ -32,6 +32,21 @@ if(ENABLE_TEST)
 	endif()
 
 	if(BUILD_SHARED_LIBS)
+		set(_smoke_system_lib_dir "")
+		set(_smoke_system_include_dir "")
+		if(TARGET StormByte-Logger)
+			get_target_property(_smoke_logger_imported StormByte-Logger IMPORTED)
+			if(_smoke_logger_imported)
+				get_target_property(_smoke_logger_loc StormByte-Logger IMPORTED_LOCATION)
+				if(_smoke_logger_loc)
+					get_filename_component(_smoke_system_lib_dir "${_smoke_logger_loc}" DIRECTORY)
+				endif()
+				get_target_property(_smoke_logger_inc StormByte-Logger INTERFACE_INCLUDE_DIRECTORIES)
+				if(_smoke_logger_inc)
+					list(GET _smoke_logger_inc 0 _smoke_system_include_dir)
+				endif()
+			endif()
+		endif()
 		add_test(NAME InstalledConsumerSmoke
 			COMMAND "${CMAKE_COMMAND}"
 				"-DDATABASE_SOURCE_DIR=${PROJECT_SOURCE_DIR}"
@@ -48,6 +63,8 @@ if(ENABLE_TEST)
 				"-DDATABASE_BUILD_CONFIG=$<CONFIG>"
 				"-DDATABASE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
 				"-DDATABASE_EXECUTABLE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
+				"-DDATABASE_SYSTEM_LIBRARY_DIR=${_smoke_system_lib_dir}"
+				"-DDATABASE_SYSTEM_INCLUDE_DIR=${_smoke_system_include_dir}"
 				"-DSMOKE_ROOT=${PROJECT_BINARY_DIR}/test/install-consumer-smoke"
 				-P "${CMAKE_CURRENT_LIST_DIR}/install_consumer_smoke.cmake"
 		)

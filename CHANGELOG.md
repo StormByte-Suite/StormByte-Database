@@ -22,6 +22,10 @@ If you landed here from a release link and have not read the tree:
 
 ## [Unreleased]
 
+### Fixed
+
+- `InstalledConsumerSmoke` also searches the directory of a system `StormByte-Logger`. `WITH_STORMBYTE=SYSTEM` does not copy that library into the BuildMaster prefix, so the smoke test failed configure with `Could not find LOGGER_LIBRARY` and aborted PGO.
+
 [Unreleased]: https://github.com/StormByte-Suite/StormByte-Database/compare/2.0.2...HEAD
 
 ## [2.0.2] - 2026-10-19
