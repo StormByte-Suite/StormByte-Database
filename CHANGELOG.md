@@ -22,11 +22,15 @@ If you landed here from a release link and have not read the tree:
 
 ## [Unreleased]
 
+[Unreleased]: https://github.com/StormByte-Suite/StormByte-Database/compare/2.1.0...HEAD
+
+## [2.1.0] - 2026-10-23
+
 ### Added
 
 - Generated and installed `StormByte/database/backend.hxx` with `enum class Backend` and `constexpr Available(Backend) noexcept`. Applications can determine which backends were compiled into the library before opening a connection: `SYSTEM` and `BUNDLED` return `true`, while `OFF` and unknown enum values return `false`. Backend tests check availability at compile time, and the API is included in the Doxygen reference.
 
-[Unreleased]: https://github.com/StormByte-Suite/StormByte-Database/compare/2.0.2...HEAD
+[2.1.0]: https://github.com/StormByte-Suite/StormByte-Database/compare/2.0.2...2.1.0
 
 ## [2.0.2] - 2026-10-19
 
