@@ -12,7 +12,7 @@ StormByte Database is the C++26 SQL layer of the StormByte suite.
 One API covers SQLite, PostgreSQL, MariaDB and Microsoft SQL Server (MSSQL).
 Backends are base classes: you derive your schema, prepare statements and hook connect there.
 This repository is not Base, Buffer, Config, Crypto, Logger, Multimedia, Network or System.
-It requires StormByte Base 2.1.0 and StormByte-Logger 2.0.2.
+It requires StormByte Base 2.2.0 and StormByte-Logger 2.0.3.
 The original StormByte-Database source is dual-licensed under LGPL v3.0-or-later or a commercial license.
 
 If you landed here from a release link and have not read the tree:
@@ -29,6 +29,10 @@ If you landed here from a release link and have not read the tree:
 ### Added
 
 - Generated and installed `StormByte/database/backend.hxx` with `enum class Backend` and `constexpr Available(Backend) noexcept`. Applications can determine which backends were compiled into the library before opening a connection: `SYSTEM` and `BUNDLED` return `true`, while `OFF` and unknown enum values return `false`. Backend tests check availability at compile time, and the API is included in the Doxygen reference.
+
+### Changed
+
+- Split `thirdparty/StormByte` into `base` and `logger` subcomponents, following Buffer's layout, and updated their release archives to StormByte Base 2.2.0 and StormByte-Logger 2.0.3. `SYSTEM`/`BUNDLED` selection and static/shared linking are unchanged.
 
 ### Fixed
 
