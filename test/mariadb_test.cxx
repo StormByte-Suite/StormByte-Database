@@ -39,6 +39,7 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
+#include <StormByte/database/backend.hxx>
 #include <StormByte/database/mariadb/mariadb.hxx>
 #include <StormByte/database/transaction.hxx>
 #include <StormByte/logger/log.hxx>
@@ -756,6 +757,8 @@ int telemetry_tracks_mariadb_operations_and_survives_database() {
 	ASSERT_CONTAINS(static_cast<std::string>(*retained), "MariaDB{");
 	RETURN_TEST(0);
 }
+
+static_assert(StormByte::Database::Available(StormByte::Database::Backend::MariaDB));
 
 int main() {
 	int result = 0;

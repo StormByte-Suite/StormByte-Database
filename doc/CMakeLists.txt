@@ -34,12 +34,14 @@ if(ENABLE_DOC)
 	)
 
 	set(DOXYGEN_INCLUDE_PATH
+		"${CMAKE_BINARY_DIR}/lib/generated"
 		"${CMAKE_SOURCE_DIR}/lib/public"
 		"${CMAKE_SOURCE_DIR}/lib/optional"
 		"${BUILDMASTER_INSTALL_INCLUDEDIR}"
 	)
 	set(DOXYGEN_STRIP_FROM_PATH "${CMAKE_SOURCE_DIR}")
 	set(DOXYGEN_STRIP_FROM_INC_PATH
+		"${CMAKE_BINARY_DIR}/lib/generated"
 		"${CMAKE_SOURCE_DIR}/lib/public"
 		"${CMAKE_SOURCE_DIR}/lib/optional"
 	)
@@ -97,6 +99,7 @@ if(ENABLE_DOC)
 
 	doxygen_add_docs(
 		StormByteDatabaseDoc
+		"${CMAKE_BINARY_DIR}/lib/generated/StormByte"
 		"${CMAKE_SOURCE_DIR}/lib/public/StormByte"
 		"${CMAKE_SOURCE_DIR}/lib/optional/StormByte"
 		"${CMAKE_SOURCE_DIR}/README.md"

@@ -39,6 +39,7 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
+#include <StormByte/database/backend.hxx>
 #include <StormByte/database/sqlite/sqlite3.hxx>
 #include <StormByte/exception.hxx>
 #include <StormByte/database/transaction.hxx>
@@ -775,6 +776,8 @@ int embedded_nul_contract() {
 	ASSERT_TRUE(db.Query("SELECT 1;").has_value());
 	RETURN_TEST(0);
 }
+
+static_assert(StormByte::Database::Available(StormByte::Database::Backend::SQLite));
 
 int main() {
 	int result = 0;

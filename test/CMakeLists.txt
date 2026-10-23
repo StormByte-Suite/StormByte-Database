@@ -4,6 +4,11 @@ if(ENABLE_TEST)
 
 	add_executable(DummyTests dummy_test.cxx)
 	target_link_libraries(DummyTests StormByte::Database)
+	foreach(_backend IN ITEMS POSTGRES MARIADB SQLITE MSSQL)
+		target_compile_definitions(DummyTests PRIVATE
+			"STORMBYTE_TEST_WITH_${_backend}=$<NOT:$<STREQUAL:${WITH_${_backend}},OFF>>"
+		)
+	endforeach()
 	add_test(NAME DummyTests COMMAND DummyTests)
 	
 	if (NOT WITH_SQLITE STREQUAL "OFF")

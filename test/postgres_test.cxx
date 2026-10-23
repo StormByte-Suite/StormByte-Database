@@ -39,6 +39,7 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
+#include <StormByte/database/backend.hxx>
 #include <StormByte/database/postgres/postgres.hxx>
 #include <StormByte/database/transaction.hxx>
 #include <StormByte/logger/log.hxx>
@@ -750,6 +751,8 @@ int embedded_nul_text_is_rejected() {
 	ASSERT_TRUE(db.ExecuteSTMT("insert_pair", "first", "second").has_value());
 	RETURN_TEST(0);
 }
+
+static_assert(StormByte::Database::Available(StormByte::Database::Backend::PostgreSQL));
 
 int main() {
 	int result = 0;

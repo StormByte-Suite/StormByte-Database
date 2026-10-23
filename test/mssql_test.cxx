@@ -39,6 +39,7 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
+#include <StormByte/database/backend.hxx>
 #include <StormByte/database/mssql/mssql.hxx>
 #include <StormByte/database/mssql/telemetry.hxx>
 #include <StormByte/database/transaction.hxx>
@@ -394,6 +395,8 @@ int telemetry_tracks_errors_and_survives_database() {
 	ASSERT_CONTAINS(static_cast<std::string>(*retained), "MSSQL{");
 	RETURN_TEST(0);
 }
+
+static_assert(StormByte::Database::Available(StormByte::Database::Backend::MSSQL));
 
 int main() {
 	if (EnvironmentValue("MSSQL_HOST", "").empty()) {

@@ -39,6 +39,7 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
+#include <StormByte/database/backend.hxx>
 #include <StormByte/database/value.hxx>
 #include <StormByte/database/rows.hxx>
 #include <StormByte/safe/optional.hxx>
@@ -69,6 +70,7 @@ class ConsumerDatabase
 };
 
 #if defined(STORMBYTE_TEST_SQLITE)
+static_assert(StormByte::Database::Available(StormByte::Database::Backend::SQLite));
 STORMBYTE_DECLARE_MAYBE_SAFE(ConsumerDatabase);
 static_assert(StormByte::Type::MaybeSafe<StormByte::Database::SQLite::SQLite3>);
 static_assert(StormByte::Type::SafeComponent<StormByte::Safe::Shared<ConsumerDatabase>>);

@@ -93,6 +93,24 @@ Shared vs static follows CMake `BUILD_SHARED_LIBS` (default ON). `-DBUILD_SHARED
 
 The core `StormByte::Database::Database` API is built independently of the client backends. Enable only the client libraries this application needs. For every backend, `OFF` omits its implementation and optional headers, `SYSTEM` uses the installed client development files, and `BUNDLED` builds the repository's pinned client dependency.
 
+The generated and installed `<StormByte/database/backend.hxx>` header provides
+`StormByte::Database::Backend` and the `constexpr` function
+`StormByte::Database::Available(Backend)`. The enum values are `PostgreSQL`,
+`MariaDB`, `SQLite` and `MSSQL`. Availability is `true` for `SYSTEM` and `BUNDLED`,
+and `false` for `OFF` or an unknown enum value; it describes the configured build,
+not server connectivity or runtime dependency discovery. It can be used in
+`static_assert` and `if constexpr`:
+
+```cpp
+#include <StormByte/database/backend.hxx>
+
+static_assert(StormByte::Database::Available(StormByte::Database::Backend::SQLite));
+```
+
+This example requires SQLite to be enabled. Use this query to check which backends
+were compiled into an installed library before selecting one or opening a
+connection; no backend-specific header or database server is needed for the query.
+
 ### SQLite
 
 Enable with `WITH_SQLITE=SYSTEM` or `WITH_SQLITE=BUNDLED` (`BUNDLED` is the default). SQLite is an embedded database, not a network server; a database is a file or `:memory:` connection. Its protected constructors take a native filesystem path or use the in-memory database; foreign-key enforcement is opt-in through `EnableForeignKeys()`.

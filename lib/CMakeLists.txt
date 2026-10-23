@@ -1,5 +1,18 @@
 include(GNUInstallDirs)
 
+foreach(_backend IN ITEMS POSTGRES MARIADB SQLITE MSSQL)
+	if(WITH_${_backend} STREQUAL "OFF")
+		set(STORMBYTE_DATABASE_HAS_${_backend} false)
+	else()
+		set(STORMBYTE_DATABASE_HAS_${_backend} true)
+	endif()
+endforeach()
+configure_file(
+	"${CMAKE_CURRENT_LIST_DIR}/public/StormByte/database/backend.hxx.in"
+	"${CMAKE_CURRENT_BINARY_DIR}/generated/StormByte/database/backend.hxx"
+	@ONLY
+)
+
 file(GLOB_RECURSE STORMBYTE_DATABASE_SOURCES CONFIGURE_DEPENDS
 	"${CMAKE_CURRENT_LIST_DIR}/public/*.cxx"
 )
@@ -105,6 +118,7 @@ endif()
 
 target_include_directories(StormByte-Database
 	SYSTEM BEFORE PUBLIC
+		"$<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>"
 		"${CMAKE_CURRENT_LIST_DIR}/public"
 		"${CMAKE_CURRENT_LIST_DIR}/private"
 		"${CMAKE_CURRENT_LIST_DIR}/optional"

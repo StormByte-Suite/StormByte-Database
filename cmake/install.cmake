@@ -9,6 +9,9 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/lib/public/StormByte/"
 	PATTERN "*.h"
 	PATTERN "*.hxx"
 )
+install(FILES "${CMAKE_BINARY_DIR}/lib/generated/StormByte/database/backend.hxx"
+	DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/StormByte/database"
+)
 if (NOT WITH_SQLITE STREQUAL "OFF")
 	install(DIRECTORY "${CMAKE_SOURCE_DIR}/lib/optional/StormByte/database/sqlite"
 		DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/StormByte/database"

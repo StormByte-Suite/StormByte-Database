@@ -39,6 +39,7 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
+#include <StormByte/database/backend.hxx>
 #include <StormByte/database/exception.hxx>
 #include <StormByte/database/row.hxx>
 #include <StormByte/database/rows.hxx>
@@ -58,6 +59,13 @@
 #include <vector>
 
 using namespace StormByte::Database;
+
+static_assert(Available(Backend::PostgreSQL) == STORMBYTE_TEST_WITH_POSTGRES);
+static_assert(Available(Backend::MariaDB) == STORMBYTE_TEST_WITH_MARIADB);
+static_assert(Available(Backend::SQLite) == STORMBYTE_TEST_WITH_SQLITE);
+static_assert(Available(Backend::MSSQL) == STORMBYTE_TEST_WITH_MSSQL);
+static_assert(!Available(static_cast<Backend>(-1)));
+static_assert(noexcept(Available(Backend::SQLite)));
 
 static_assert(StormByte::Type::MaybeSafe<Value>);
 static_assert(StormByte::Type::MaybeSafe<NamedValue>);
