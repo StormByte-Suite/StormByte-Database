@@ -30,6 +30,10 @@ If you landed here from a release link and have not read the tree:
 
 - Generated and installed `StormByte/database/backend.hxx` with `enum class Backend` and `constexpr Available(Backend) noexcept`. Applications can determine which backends were compiled into the library before opening a connection: `SYSTEM` and `BUNDLED` return `true`, while `OFF` and unknown enum values return `false`. Backend tests check availability at compile time, and the API is included in the Doxygen reference.
 
+### Fixed
+
+- CI and release initialize MariaDB as the `mysql` service user rather than asking the bootstrap server to switch UID/GID. Bootstrap uses `--no-defaults` and explicit command-line settings instead of a configuration file in `/tmp` that the server could not open. This addresses the initialization failures observed after `ubuntu-latest` moved to Ubuntu 26.04, while preserving root administration through Unix-socket authentication.
+
 [2.1.0]: https://github.com/StormByte-Suite/StormByte-Database/compare/2.0.2...2.1.0
 
 ## [2.0.2] - 2026-10-19

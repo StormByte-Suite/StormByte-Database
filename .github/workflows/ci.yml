@@ -207,18 +207,14 @@ jobs:
           sudo mkdir -p /var/lib/mysql
           sudo chown mysql:mysql /var/lib/mysql
 
-          TMPCNF=/tmp/ci-mariadb.cnf
-          printf '%s\n' '[mysqld]' 'datadir=/var/lib/mysql' \
-            'socket=/var/run/mysqld/mysqld.sock' 'skip-log-bin' \
-            | sudo tee "$TMPCNF" > /dev/null
-
-          if ! sudo mariadb-install-db --defaults-file="$TMPCNF" --user=mysql --datadir=/var/lib/mysql 2>&1 | sed -n '1,200p'; then
+          # Bootstrap as the service user without asking mariadbd to switch UID/GID.
+          if ! sudo -u mysql mariadb-install-db --no-defaults \
+            --auth-root-socket-user=root --datadir=/var/lib/mysql \
+            --socket=/var/run/mysqld/mysqld.sock --skip-log-bin 2>&1 | sed -n '1,200p'; then
             echo "mariadb-install-db failed"
-            sudo sed -n '1,200p' "$TMPCNF" || true
             sudo find /etc/mysql -type f -maxdepth 3 -print -exec sed -n '1,200p' {} \; 2>/dev/null || true
             exit 1
           fi
-          sudo rm -f "$TMPCNF" || true
           sudo chown -R mysql:mysql /var/lib/mysql || true
 
           if ! (sudo systemctl start mariadb || sudo service mariadb start); then
