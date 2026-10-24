@@ -12,7 +12,7 @@ StormByte Database is the C++26 SQL layer of the StormByte suite.
 One API covers SQLite, PostgreSQL, MariaDB and Microsoft SQL Server (MSSQL).
 Backends are base classes: you derive your schema, prepare statements and hook connect there.
 This repository is not Base, Buffer, Config, Crypto, Logger, Multimedia, Network or System.
-It requires StormByte Base 2.2.0 and StormByte-Logger 2.0.3.
+It requires StormByte Base 2.2.1 and StormByte-Logger 2.0.4.
 The original StormByte-Database source is dual-licensed under LGPL v3.0-or-later or a commercial license.
 
 If you landed here from a release link and have not read the tree:
@@ -28,6 +28,11 @@ If you landed here from a release link and have not read the tree:
 
 ### Changed
 
+- Bundled third-party StormByte dependencies now require the matching patch releases (Base 2.2.1, Buffer 2.0.4, Logger 2.0.4, System 2.1.1 where applicable) so a bundled build picks up the /arch:AVX change.
+
+
+### Changed
+
 - Windows Release optimizations use `/arch:AVX` instead of `/arch:AVX2`. The previous baseline required a Haswell-or-newer CPU (AVX2). `/arch:AVX` runs on Sandy Bridge and Ivy Bridge (including the i7-3770K) and later.
 
 [2.1.1]: https://github.com/StormByte-Suite/StormByte-Database/compare/2.1.0...2.1.1
@@ -40,7 +45,7 @@ If you landed here from a release link and have not read the tree:
 
 ### Changed
 
-- Split `thirdparty/StormByte` into `base` and `logger` subcomponents, following Buffer's layout, and updated their release archives to StormByte Base 2.2.0 and StormByte-Logger 2.0.3. `SYSTEM`/`BUNDLED` selection and static/shared linking are unchanged.
+- Split `thirdparty/StormByte` into `base` and `logger` subcomponents, following Buffer's layout, and updated their release archives to StormByte Base 2.2.1 and StormByte-Logger 2.0.4. `SYSTEM`/`BUNDLED` selection and static/shared linking are unchanged.
 
 ### Fixed
 
