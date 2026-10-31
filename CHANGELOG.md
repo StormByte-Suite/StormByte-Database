@@ -22,6 +22,10 @@ If you landed here from a release link and have not read the tree:
 
 ## [Unreleased]
 
+### Changed
+
+- Bundled OpenSSL builds disable SSLv3 and TLS compression while retaining modern TLS versions and the existing cipher algorithm set.
+
 [Unreleased]: https://github.com/StormByte-Suite/StormByte-Database/compare/2.1.2...HEAD
 
 ## [2.1.2] - 2026-10-28
