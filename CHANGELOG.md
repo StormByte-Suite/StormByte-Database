@@ -33,6 +33,7 @@ If you landed here from a release link and have not read the tree:
 ### Changed
 
 - Bundled builds use Base 2.2.3 and Logger 2.0.6.
+- Rebuild release packages against the refreshed Base 2.2.3 and Logger 2.0.6 releases, including their final audit fixes.
 - Bundled OpenSSL builds disable SSLv3 and TLS compression while retaining modern TLS versions and the existing cipher algorithm set.
 
 [2.1.3]: https://github.com/StormByte-Suite/StormByte-Database/compare/2.1.2...2.1.3
