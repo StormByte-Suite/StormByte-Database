@@ -12,7 +12,7 @@ StormByte Database is the C++26 SQL layer of the StormByte suite.
 One API covers SQLite, PostgreSQL, MariaDB and Microsoft SQL Server (MSSQL).
 Backends are base classes: you derive your schema, prepare statements and hook connect there.
 This repository is not Base, Buffer, Config, Crypto, Logger, Multimedia, Network or System.
-It requires StormByte Base 2.2.2 and StormByte-Logger 2.0.5.
+It requires StormByte Base 2.2.3 and StormByte-Logger 2.0.6.
 The original StormByte-Database source is dual-licensed under LGPL v3.0-or-later or a commercial license.
 
 If you landed here from a release link and have not read the tree:
@@ -22,11 +22,16 @@ If you landed here from a release link and have not read the tree:
 
 ## [Unreleased]
 
+[Unreleased]: https://github.com/StormByte-Suite/StormByte-Database/compare/2.1.3...HEAD
+
+## [2.1.3] - 2026-11-02
+
 ### Changed
 
+- Bundled builds use Base 2.2.3 and Logger 2.0.6.
 - Bundled OpenSSL builds disable SSLv3 and TLS compression while retaining modern TLS versions and the existing cipher algorithm set.
 
-[Unreleased]: https://github.com/StormByte-Suite/StormByte-Database/compare/2.1.2...HEAD
+[2.1.3]: https://github.com/StormByte-Suite/StormByte-Database/compare/2.1.2...2.1.3
 
 ## [2.1.2] - 2026-10-28
 
