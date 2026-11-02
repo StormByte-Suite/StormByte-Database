@@ -26,6 +26,10 @@ If you landed here from a release link and have not read the tree:
 
 ## [2.1.3] - 2026-11-02
 
+### Fixed
+
+- Windows CI and release builds retry transient Chocolatey failures when installing NASM and jom, and require each executable to be available before accepting installation as successful.
+
 ### Changed
 
 - Bundled builds use Base 2.2.3 and Logger 2.0.6.

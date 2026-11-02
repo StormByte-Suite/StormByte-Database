@@ -519,9 +519,25 @@ jobs:
           packages: "strawberryperl"
 
       - name: Install OpenSSL build tools
-        uses: stormbytepp/githubactions/.github/actions/install-cached@master
-        with:
-          packages: "nasm jom"
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          foreach ($tool in @("nasm", "jom")) {
+            for ($attempt = 1; $attempt -le 3; $attempt++) {
+              choco install $tool -y --no-progress
+              $installExitCode = $LASTEXITCODE
+              $command = Get-Command $tool -ErrorAction SilentlyContinue
+              if ($installExitCode -eq 0 -and $null -ne $command) {
+                Write-Host "$tool`: $($command.Source)"
+                break
+              }
+              if ($attempt -eq 3) {
+                throw "Failed to install $tool or make it available on PATH after $attempt attempts (Chocolatey exit code $installExitCode)."
+              }
+              Write-Warning "$tool install attempt $attempt failed or left the executable unavailable; retrying in 10 seconds."
+              Start-Sleep -Seconds 10
+            }
+          }
 
       - name: Check OpenSSL build tools
         shell: pwsh
