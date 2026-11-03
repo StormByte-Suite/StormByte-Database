@@ -29,7 +29,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-26.04, ubuntu-26.04-arm, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     name: checkout-bootstrap (${{ matrix.os }})
     steps:
@@ -40,8 +40,12 @@ jobs:
           submodules: recursive
 
   apt-bootstrap:
-    runs-on: ubuntu-latest
-    name: apt-bootstrap
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-26.04, ubuntu-26.04-arm]
+    runs-on: ${{ matrix.runner }}
+    name: apt-bootstrap (${{ matrix.runner }})
     steps:
       - name: Warm APT lists cache
         uses: stormbytepp/githubactions/.github/actions/update-apt-cached@master
@@ -53,7 +57,22 @@ jobs:
   ###########################################################################
   build-linux:
     needs: [checkout-bootstrap, apt-bootstrap]
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - runner: ubuntu-26.04
+            arch: amd64
+          - runner: ubuntu-26.04-arm
+            arch: arm64
+        libc: [glibc, musl]
+        toolchain:
+          - compiler: gcc
+            stdlib: libstdc++
+          - compiler: clang
+            stdlib: libc++
+        dependencies: [BUNDLED]
+    runs-on: ${{ matrix.platform.runner }}
     services:
       postgres:
         image: postgres:15
@@ -66,32 +85,10 @@ jobs:
           --health-interval=5s
           --health-timeout=3s
           --health-retries=10
-      mssql:
-        image: mcr.microsoft.com/mssql/server:2022-latest
-        env:
-          ACCEPT_EULA: Y
-          MSSQL_PID: Developer
-          MSSQL_SA_PASSWORD: "StormByte!Mssql2026"
-        ports:
-          - 1433:1433
-
-    strategy:
-      fail-fast: false
-      matrix:
-        compiler: [gcc, clang, clang-libc++]
-        dependencies: [OFF, BUNDLED, SYSTEM]
-        exclude:
-          - compiler: clang-libc++
-            dependencies: SYSTEM
-
-    name: linux-${{ matrix.compiler }}-${{ matrix.dependencies }}
+    name: linux-${{ matrix.platform.arch }}-${{ matrix.libc }}-${{ matrix.toolchain.stdlib }}
 
     env:
-      MSSQL_HOST: 127.0.0.1
-      MSSQL_USER: sa
-      MSSQL_PASSWORD: "StormByte!Mssql2026"
-      MSSQL_DATABASE: master
-      MSSQL_PORT: 1433
+      MSSQL_HOST: ""
       POSTGRES_USER: testuser
       POSTGRES_PASSWORD: testpass
       POSTGRES_PORT: 5432
@@ -247,26 +244,6 @@ jobs:
           lists-cache-key: apt-lists
           rotate-weekly: true
 
-      - name: Wait for SQL Server
-        if: matrix.dependencies != 'OFF'
-        shell: bash
-        env:
-          MSSQL_CONTAINER_ID: ${{ job.services.mssql.id }}
-        run: |
-          set -euo pipefail
-          for attempt in $(seq 1 90); do
-            if docker logs "$MSSQL_CONTAINER_ID" 2>&1 | grep -Fq "SQL Server is now ready for client connections"; then
-              exit 0
-            fi
-            if [[ "$(docker inspect -f '{{.State.Running}}' "$MSSQL_CONTAINER_ID")" != "true" ]]; then
-              docker logs "$MSSQL_CONTAINER_ID"
-              exit 1
-            fi
-            sleep 2
-          done
-          docker logs "$MSSQL_CONTAINER_ID"
-          exit 1
-
       - name: Add shared library directories
         shell: bash
         run: |
@@ -294,13 +271,17 @@ jobs:
       - name: Build with toolchain
         uses: stormbytepp/githubactions/.github/actions/build-with-toolchain@master
         with:
-          toolchain: ${{ matrix.compiler }}
-          ccache-key: v1-${{ matrix.compiler }}-${{ matrix.dependencies }}
-          buildmaster-datadir-cache-key: bm-datadir-${{ runner.os }}-${{ matrix.compiler }}-${{ matrix.dependencies }}
+          compiler: ${{ matrix.toolchain.compiler }}
+          cxx-stdlib: ${{ matrix.toolchain.stdlib }}
+          libc: ${{ matrix.libc }}
+          compiler-cache-key: database-v1
+          compiler-cache-scope: ${{ matrix.platform.arch }}-${{ matrix.libc }}-${{ matrix.toolchain.compiler }}-${{ matrix.toolchain.stdlib }}
+          buildmaster-cache-key: bm-database-${{ matrix.platform.arch }}-${{ matrix.libc }}-${{ matrix.toolchain.compiler }}-${{ matrix.toolchain.stdlib }}
           build-type: ${{ env.BUILD_TYPE }}
-          configure-options: >-
-            -DENABLE_LTO=ON
-            -DENABLE_PGO=OFF
+          pgo: false
+          lto: false
+          cpu-baseline: auto
+          cmake-options: >-
             -DENABLE_TEST=ON
             -DBUILD_SHARED_LIBS=ON
             -DWITH_SQLITE=${{ matrix.dependencies }}
@@ -309,9 +290,91 @@ jobs:
             -DWITH_MSSQL=${{ matrix.dependencies }}
             ${{ matrix.dependencies != 'OFF' && format('-DWITH_OPENSSL={0}', matrix.dependencies) || '' }}
             -DWITH_STORMBYTE=BUNDLED
-            ${{ matrix.compiler == 'clang-libc++' && '-DCMAKE_CXX_FLAGS=-stdlib=libc++ -DCMAKE_CXX_STANDARD_LIBRARIES=-stdlib=libc++' || '' }}
-          run-tests: true
+          ctest: true
           ctest-options: --output-on-failure --test-dir ${{ github.workspace }}/build/test
+
+  mssql-integration:
+    needs: [checkout-bootstrap, apt-bootstrap]
+    runs-on: ubuntu-26.04
+    services:
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: "StormByte!Mssql2026"
+        ports:
+          - 1433:1433
+    name: mssql-linux-amd64
+    env:
+      MSSQL_HOST: 127.0.0.1
+      MSSQL_USER: sa
+      MSSQL_PASSWORD: "StormByte!Mssql2026"
+      MSSQL_DATABASE: master
+      MSSQL_PORT: 1433
+    steps:
+      - name: Checkout repository and submodules
+        uses: stormbytepp/githubactions/.github/actions/checkout-cached@master
+        with:
+          fetch-depth: 1
+          submodules: recursive
+
+      - name: Wait for SQL Server
+        shell: bash
+        env:
+          MSSQL_CONTAINER_ID: ${{ job.services.mssql.id }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 90); do
+            if docker logs "$MSSQL_CONTAINER_ID" 2>&1 | grep -Fq "SQL Server is now ready for client connections"; then
+              exit 0
+            fi
+            if [[ "$(docker inspect -f '{{.State.Running}}' "$MSSQL_CONTAINER_ID")" != "true" ]]; then
+              docker logs "$MSSQL_CONTAINER_ID"
+              exit 1
+            fi
+            sleep 2
+          done
+          docker logs "$MSSQL_CONTAINER_ID"
+          exit 1
+
+      - name: Add shared library directories
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in LD_LIBRARY_PATH DYLD_LIBRARY_PATH; do
+            current="$(printenv "$name" || true)"
+            extra="${{ github.workspace }}/build/lib:${{ github.workspace }}/build/buildmaster/install/lib:${{ github.workspace }}/build/buildmaster/install/lib64"
+            if [[ -n "$current" ]]; then
+              echo "${name}=${current}:${extra}" >> "$GITHUB_ENV"
+            else
+              echo "${name}=${extra}" >> "$GITHUB_ENV"
+            fi
+          done
+
+      - name: Build and run MSSQL integration test
+        uses: stormbytepp/githubactions/.github/actions/build-with-toolchain@master
+        with:
+          compiler: gcc
+          cxx-stdlib: libstdc++
+          compiler-cache-key: database-v1
+          compiler-cache-scope: mssql-integration
+          buildmaster-cache-key: bm-database-mssql-integration
+          build-type: ${{ env.BUILD_TYPE }}
+          pgo: false
+          lto: false
+          cpu-baseline: auto
+          cmake-options: >-
+            -DENABLE_TEST=ON
+            -DBUILD_SHARED_LIBS=ON
+            -DWITH_SQLITE=OFF
+            -DWITH_POSTGRES=OFF
+            -DWITH_MARIADB=OFF
+            -DWITH_MSSQL=BUNDLED
+            -DWITH_OPENSSL=BUNDLED
+            -DWITH_STORMBYTE=BUNDLED
+          ctest: true
+          ctest-options: --output-on-failure --test-dir ${{ github.workspace }}/build/test -R ^MSSQLTests$
 
   ###########################################################################
   # macOS
@@ -477,13 +540,15 @@ jobs:
       - name: Build with toolchain
         uses: stormbytepp/githubactions/.github/actions/build-with-toolchain@master
         with:
-          toolchain: ${{ matrix.compiler }}
-          ccache-key: v1-${{ matrix.compiler }}-${{ matrix.dependencies }}
-          buildmaster-datadir-cache-key: bm-datadir-${{ runner.os }}-${{ matrix.compiler }}-${{ matrix.dependencies }}
+          compiler: ${{ matrix.compiler }}
+          compiler-cache-key: database-v1
+          compiler-cache-scope: macos-${{ matrix.compiler }}-${{ matrix.dependencies }}
+          buildmaster-cache-key: bm-database-macos-${{ matrix.compiler }}-${{ matrix.dependencies }}
           build-type: ${{ env.BUILD_TYPE }}
-          configure-options: >-
-            -DENABLE_LTO=ON
-            -DENABLE_PGO=OFF
+          pgo: false
+          lto: false
+          cpu-baseline: auto
+          cmake-options: >-
             -DENABLE_TEST=ON
             -DBUILD_SHARED_LIBS=ON
             -DWITH_SQLITE=${{ matrix.dependencies }}
@@ -492,7 +557,7 @@ jobs:
             -DWITH_MSSQL=${{ matrix.dependencies }}
             ${{ matrix.dependencies != 'OFF' && format('-DWITH_OPENSSL={0}', matrix.dependencies) || '' }}
             -DWITH_STORMBYTE=BUNDLED
-          run-tests: true
+          ctest: true
           ctest-options: --output-on-failure --test-dir ${{ github.workspace }}/build/test
 
   ###########################################################################
@@ -773,13 +838,15 @@ jobs:
       - name: Build with toolchain
         uses: stormbytepp/githubactions/.github/actions/build-with-toolchain@master
         with:
-          toolchain: clang-cl
-          ccache-key: v1-clang-cl-mdb(BUNDLED)-pg(BUNDLED)-sqlite(BUNDLED)
-          buildmaster-datadir-cache-key: bm-datadir-${{ runner.os }}-clang-cl
+          compiler: clang-cl
+          compiler-cache-key: database-v1
+          compiler-cache-scope: windows-clang-cl
+          buildmaster-cache-key: bm-database-windows-clang-cl
           build-type: ${{ env.BUILD_TYPE }}
-          configure-options: >-
-            -DENABLE_LTO=ON
-            -DENABLE_PGO=OFF
+          pgo: false
+          lto: false
+          cpu-baseline: auto
+          cmake-options: >-
             -DENABLE_TEST=ON
             -DBUILD_SHARED_LIBS=ON
             -DWITH_SQLITE=BUNDLED
@@ -788,5 +855,5 @@ jobs:
             -DWITH_MSSQL=BUNDLED
             -DWITH_OPENSSL=BUNDLED
             -DWITH_STORMBYTE=BUNDLED
-          run-tests: true
+          ctest: true
           ctest-options: --output-on-failure --test-dir ${{ github.workspace }}\build\test

@@ -1,0 +1,1 @@
+stormbyte_find_component(Database DEPENDS Logger)

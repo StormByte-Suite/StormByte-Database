@@ -12,7 +12,7 @@ StormByte Database is the C++26 SQL layer of the StormByte suite.
 One API covers SQLite, PostgreSQL, MariaDB and Microsoft SQL Server (MSSQL).
 Backends are base classes: you derive your schema, prepare statements and hook connect there.
 This repository is not Base, Buffer, Config, Crypto, Logger, Multimedia, Network or System.
-It requires StormByte Base 2.2.3 and StormByte-Logger 2.0.6.
+It requires StormByte Base 3.0.0 and StormByte-Logger 3.0.0.
 The original StormByte-Database source is dual-licensed under LGPL v3.0-or-later or a commercial license.
 
 If you landed here from a release link and have not read the tree:
@@ -20,9 +20,24 @@ If you landed here from a release link and have not read the tree:
 - What this module is, how to build it, and short examples: [README.md](https://github.com/StormByte-Suite/StormByte-Database/blob/master/README.md)
 - License: dual LGPL v3.0-or-later / commercial, [LICENSE](https://github.com/StormByte-Suite/StormByte-Database/blob/master/LICENSE) and [COPYING.LGPLv3](https://github.com/StormByte-Suite/StormByte-Database/blob/master/COPYING.LGPLv3)
 
-## [Unreleased]
+## [3.0.0] - 2026-11-03
 
-[Unreleased]: https://github.com/StormByte-Suite/StormByte-Database/compare/2.1.3...HEAD
+### Added
+
+- Install `FindStormByteDatabase.cmake` so Base 3.0.0 can discover Database as a component. Verify consumers against both an installed prefix and an extracted release ZIP.
+
+### Changed
+
+- **Breaking:** Require Base 3.0.0 component discovery and use the Linux archive naming scheme with architecture, libc and C++ standard library.
+- Require StormByte-Logger 3.0.0 and StormByte-BuildMaster 2.1.4.
+- Stop forcing CPU and optimization flags in manual Release builds; CPU selection now comes from the toolchain while `ENABLE_LTO` remains independently configurable.
+
+### Fixed
+
+- Reconfigure automatically when `VERSION` changes so rebuilt and installed artifacts use the updated project version.
+
+[Unreleased]: https://github.com/StormByte-Suite/StormByte-Database/compare/3.0.0...HEAD
+[3.0.0]: https://github.com/StormByte-Suite/StormByte-Database/compare/2.1.3...3.0.0
 
 ## [2.1.3] - 2026-11-02
 

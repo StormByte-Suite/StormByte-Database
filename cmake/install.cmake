@@ -44,3 +44,6 @@ if (NOT WITH_MSSQL STREQUAL "OFF")
 		PATTERN "*.hxx"
 	)
 endif()
+install(FILES "${CMAKE_SOURCE_DIR}/cmake/FindStormByteDatabase.cmake"
+	DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/cmake/Modules"
+)

@@ -9,7 +9,7 @@
 
 This repository is **StormByte Database**: the C++26 SQL layer of the StormByte suite.
 
-It depends on StormByte Base 2.2.3 and StormByte-Logger 2.0.6, downloaded as release archives. Public headers live under `StormByte/database/`.
+It depends on StormByte Base 3.0.0, StormByte-Logger 3.0.0 and StormByte-BuildMaster 2.1.4. Base and Logger are downloaded as release archives. Public headers live under `StormByte/database/`.
 
 One API covers SQLite, PostgreSQL, MariaDB and Microsoft SQL Server (MSSQL). You do **not** construct those backends as generic objects. They are **base classes**: derive your schema, call the backend constructor, prepare statements and hook connect/disconnect there.
 
@@ -65,7 +65,7 @@ The suite is split on purpose. Base, Buffer, Config, Crypto, Logger, Multimedia,
 
 ## Installation
 
-Needs a C++26 compiler, CMake 3.28 or newer, StormByte-BuildMaster 2.1.3, StormByte Base 2.2.3 and StormByte-Logger 2.0.6. Base and Logger are release archives, not submodules. The SQLite, PostgreSQL, MariaDB and MSSQL backends are independently optional. The default for each is `BUNDLED`; set each `WITH_SQLITE`, `WITH_POSTGRES`, `WITH_MARIADB` or `WITH_MSSQL` option to `OFF`, `SYSTEM` or `BUNDLED` to choose explicitly. `SYSTEM` discovers an installed client library and `BUNDLED` builds the pinned client dependency. Only enabled backends are compiled and their optional headers installed. The bundled MSSQL backend compiles FreeTDS DB-Library and the TDS support it needs, under the GNU Library General Public License v2 or later. FreeTDS utilities, the server, ODBC and CT-Library are not compiled in.
+Needs a C++26 compiler, CMake 3.28 or newer, StormByte-BuildMaster 2.1.4, StormByte Base 3.0.0 and StormByte-Logger 3.0.0. Base and Logger are release archives, not submodules. The SQLite, PostgreSQL, MariaDB and MSSQL backends are independently optional. The default for each is `BUNDLED`; set each `WITH_SQLITE`, `WITH_POSTGRES`, `WITH_MARIADB` or `WITH_MSSQL` option to `OFF`, `SYSTEM` or `BUNDLED` to choose explicitly. `SYSTEM` discovers an installed client library and `BUNDLED` builds the pinned client dependency. Only enabled backends are compiled and their optional headers installed. The bundled MSSQL backend compiles FreeTDS DB-Library and the TDS support it needs, under the GNU Library General Public License v2 or later. FreeTDS utilities, the server, ODBC and CT-Library are not compiled in.
 
 `WITH_OPENSSL` accepts `SYSTEM` or `BUNDLED` (default); `OFF` is not supported. Windows always forces `BUNDLED`, regardless of the requested value. It selects TLS dependencies for bundled PostgreSQL, MariaDB and FreeTDS clients. `BUNDLED` builds their common pinned OpenSSL 3.5.9 dependency as static libraries, with SSLv3 and TLS compression disabled; TLS 1.2/1.3 and the available cipher algorithms remain enabled. It requires Perl and a make implementation, plus NASM on Windows. `SYSTEM` uses installed dynamic OpenSSL libraries and development files without requesting static archives; PostgreSQL uses Meson's normal OpenSSL discovery. Already-installed system database clients keep their own TLS dependencies. Changing dependency modes requires a clean build directory.
 
@@ -75,6 +75,15 @@ cd StormByte-Database
 cmake -S . -B build
 cmake --build build
 ```
+
+For installed Base, Logger and Database prefixes, add Base's `share/cmake/Modules` to `CMAKE_MODULE_PATH` and all three prefixes to `CMAKE_PREFIX_PATH`, then use the component finder:
+
+```cmake
+find_package(StormByte REQUIRED COMPONENTS Base Database)
+target_link_libraries(app PRIVATE StormByte::Database)
+```
+
+Database installs `FindStormByteDatabase.cmake` in `share/cmake/Modules` and requires Logger to be discoverable as a StormByte component.
 
 For a SQLite-only build, make the selection explicit:
 
@@ -86,6 +95,8 @@ cmake -S . -B build-sqlite \
 	-DWITH_MSSQL=OFF
 cmake --build build-sqlite
 ```
+
+Manual builds use the compiler and CMake defaults for optimization and CPU selection; set `CMAKE_C_FLAGS` / `CMAKE_CXX_FLAGS` or `CFLAGS` / `CXXFLAGS` to choose a CPU baseline. Existing build directories may retain Release flags cached by an older version; configure a fresh build directory to discard them. `ENABLE_LTO` defaults to `ON` and can be disabled with `-DENABLE_LTO=OFF`. CI and releases select `cpu-baseline: auto` through the build action.
 
 Shared vs static follows CMake `BUILD_SHARED_LIBS` (default ON). `-DBUILD_SHARED_LIBS=OFF` builds a static archive. In static mode BuildMaster flattens private vendor dependencies into the consumer link closure; users do not need to repack vendor archives. The shared library keeps Database replaceable as its own DLL/shared object.
 

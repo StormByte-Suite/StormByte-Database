@@ -400,7 +400,7 @@ static_assert(StormByte::Database::Available(StormByte::Database::Backend::MSSQL
 
 int main() {
 	if (EnvironmentValue("MSSQL_HOST", "").empty()) {
-		std::cout << "MSSQL_HOST is unset; skipping MSSQL integration test.\n";
+		std::cout << "No SQL Server endpoint is configured; skipping MSSQL integration test.\n";
 		return 77;
 	}
 	int result{};
