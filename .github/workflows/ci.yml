@@ -85,10 +85,22 @@ jobs:
           --health-interval=5s
           --health-timeout=3s
           --health-retries=10
+      mssql:
+        image: ${{ matrix.platform.arch == 'amd64' && matrix.dependencies != 'OFF' && 'mcr.microsoft.com/mssql/server:2022-latest' || '' }}
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: "StormByte!Mssql2026"
+        ports:
+          - 1433:1433
     name: linux-${{ matrix.platform.arch }}-${{ matrix.libc }}-${{ matrix.toolchain.stdlib }}-${{ matrix.dependencies }}
 
     env:
-      MSSQL_HOST: ""
+      MSSQL_HOST: ${{ matrix.platform.arch == 'amd64' && matrix.dependencies != 'OFF' && '127.0.0.1' || '' }}
+      MSSQL_USER: sa
+      MSSQL_PASSWORD: "StormByte!Mssql2026"
+      MSSQL_DATABASE: master
+      MSSQL_PORT: 1433
       POSTGRES_USER: testuser
       POSTGRES_PASSWORD: testpass
       POSTGRES_PORT: 5432
@@ -244,23 +256,44 @@ jobs:
           lists-cache-key: apt-lists
           rotate-weekly: true
 
+      - name: Wait for SQL Server
+        if: matrix.platform.arch == 'amd64' && matrix.dependencies != 'OFF'
+        shell: bash
+        env:
+          MSSQL_CONTAINER_ID: ${{ job.services.mssql.id }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 90); do
+            if docker logs "$MSSQL_CONTAINER_ID" 2>&1 | grep -Fq "SQL Server is now ready for client connections"; then
+              exit 0
+            fi
+            if [[ "$(docker inspect -f '{{.State.Running}}' "$MSSQL_CONTAINER_ID")" != "true" ]]; then
+              docker logs "$MSSQL_CONTAINER_ID"
+              exit 1
+            fi
+            sleep 2
+          done
+          docker logs "$MSSQL_CONTAINER_ID"
+          exit 1
+
       - name: Add shared library directories
         shell: bash
         run: |
           set -euo pipefail
           # Append. Assigning the variable would drop a path already set.
           add_dir() {
-            local name="$1" dir="$2"
-            local current="${!name-}"
+            local name="$1" dir="$2" current
+            current="$(printenv "$name" || true)"
             case ":${current}:" in
               *":${dir}:"*) return 0 ;;
             esac
             if [[ -n "$current" ]]; then
-              export "${name}=${current}:${dir}"
+              current="${current}:${dir}"
             else
-              export "${name}=${dir}"
+              current="${dir}"
             fi
-            echo "${name}=${!name}" >> "$GITHUB_ENV"
+            export "${name}=${current}"
+            echo "${name}=${current}" >> "$GITHUB_ENV"
           }
           for name in LD_LIBRARY_PATH DYLD_LIBRARY_PATH; do
             add_dir "$name" "${{ github.workspace }}/build/lib"
@@ -294,90 +327,6 @@ jobs:
             -DWITH_STORMBYTE=BUNDLED
           ctest: true
           ctest-options: --output-on-failure --test-dir ${{ github.workspace }}/build/test
-
-  mssql-integration:
-    needs: [checkout-bootstrap, apt-bootstrap]
-    runs-on: ubuntu-26.04
-    services:
-      mssql:
-        image: mcr.microsoft.com/mssql/server:2022-latest
-        env:
-          ACCEPT_EULA: Y
-          MSSQL_PID: Developer
-          MSSQL_SA_PASSWORD: "StormByte!Mssql2026"
-        ports:
-          - 1433:1433
-    name: mssql-linux-amd64
-    env:
-      MSSQL_HOST: 127.0.0.1
-      MSSQL_USER: sa
-      MSSQL_PASSWORD: "StormByte!Mssql2026"
-      MSSQL_DATABASE: master
-      MSSQL_PORT: 1433
-    steps:
-      - name: Checkout repository and submodules
-        uses: stormbytepp/githubactions/.github/actions/checkout-cached@master
-        with:
-          fetch-depth: 1
-          submodules: recursive
-
-      - name: Wait for SQL Server
-        shell: bash
-        env:
-          MSSQL_CONTAINER_ID: ${{ job.services.mssql.id }}
-        run: |
-          set -euo pipefail
-          for attempt in $(seq 1 90); do
-            if docker logs "$MSSQL_CONTAINER_ID" 2>&1 | grep -Fq "SQL Server is now ready for client connections"; then
-              exit 0
-            fi
-            if [[ "$(docker inspect -f '{{.State.Running}}' "$MSSQL_CONTAINER_ID")" != "true" ]]; then
-              docker logs "$MSSQL_CONTAINER_ID"
-              exit 1
-            fi
-            sleep 2
-          done
-          docker logs "$MSSQL_CONTAINER_ID"
-          exit 1
-
-      - name: Add shared library directories
-        shell: bash
-        run: |
-          set -euo pipefail
-          for name in LD_LIBRARY_PATH DYLD_LIBRARY_PATH; do
-            current="$(printenv "$name" || true)"
-            extra="${{ github.workspace }}/build/lib:${{ github.workspace }}/build/buildmaster/install/lib:${{ github.workspace }}/build/buildmaster/install/lib64"
-            if [[ -n "$current" ]]; then
-              echo "${name}=${current}:${extra}" >> "$GITHUB_ENV"
-            else
-              echo "${name}=${extra}" >> "$GITHUB_ENV"
-            fi
-          done
-
-      - name: Build and run MSSQL integration test
-        uses: stormbytepp/githubactions/.github/actions/build-with-toolchain@master
-        with:
-          compiler: gcc
-          cxx-stdlib: libstdc++
-          compiler-cache-key: database-v1
-          compiler-cache-scope: mssql-integration
-          buildmaster-cache-key: bm-database-mssql-integration
-          build-type: ${{ env.BUILD_TYPE }}
-          pgo: false
-          lto: false
-          cpu-baseline: auto
-          cmake-options: >-
-            -DENABLE_TEST=ON
-            -DBUILD_SHARED_LIBS=ON
-            -DWITH_SQLITE=OFF
-            -DWITH_POSTGRES=OFF
-            -DWITH_MARIADB=OFF
-            -DWITH_MSSQL=BUNDLED
-            -DGPERF_SYSTEM_EXECUTABLE=OFF
-            -DWITH_OPENSSL=BUNDLED
-            -DWITH_STORMBYTE=BUNDLED
-          ctest: true
-          ctest-options: --output-on-failure --test-dir ${{ github.workspace }}/build/test -R ^MSSQLTests$
 
   ###########################################################################
   # macOS
@@ -522,17 +471,18 @@ jobs:
           set -euo pipefail
           # Append. Assigning the variable would drop a path already set.
           add_dir() {
-            local name="$1" dir="$2"
-            local current="${!name-}"
+            local name="$1" dir="$2" current
+            current="$(printenv "$name" || true)"
             case ":${current}:" in
               *":${dir}:"*) return 0 ;;
             esac
             if [[ -n "$current" ]]; then
-              export "${name}=${current}:${dir}"
+              current="${current}:${dir}"
             else
-              export "${name}=${dir}"
+              current="${dir}"
             fi
-            echo "${name}=${!name}" >> "$GITHUB_ENV"
+            export "${name}=${current}"
+            echo "${name}=${current}" >> "$GITHUB_ENV"
           }
           for name in LD_LIBRARY_PATH DYLD_LIBRARY_PATH; do
             add_dir "$name" "${{ github.workspace }}/build/lib"
