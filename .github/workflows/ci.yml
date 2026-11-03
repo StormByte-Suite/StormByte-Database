@@ -334,13 +334,7 @@ jobs:
   build-macos:
     needs: [checkout-bootstrap]
     runs-on: macos-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        compiler: [clang]
-        dependencies: [OFF, BUNDLED, SYSTEM]
-
-    name: macos-${{ matrix.compiler }}-${{ matrix.dependencies }}
+    name: macos-clang-BUNDLED
 
     env:
       MSSQL_HOST: ${{ github.ref == 'refs/heads/master' && secrets.TS_OAUTH_CLIENT_ID != '' && secrets.TS_AUDIENCE != '' && vars.MSSQL_REMOTE_HOST || '' }}
@@ -365,7 +359,6 @@ jobs:
           submodules: recursive
 
       - name: Check OpenSSL build tools
-        if: matrix.dependencies == 'BUNDLED'
         shell: bash
         run: |
           set -euo pipefail
@@ -373,7 +366,6 @@ jobs:
           command -v make
 
       - name: Install and start Postgres (brew)
-        if: matrix.dependencies != 'OFF'
         shell: bash
         run: |
           set -euo pipefail
@@ -391,7 +383,6 @@ jobs:
           createdb -O testuser stormbyte_test 2>/dev/null || true
 
       - name: Install and start MariaDB with SSL (brew)
-        if: matrix.dependencies != 'OFF'
         shell: bash
         run: |
           set -euo pipefail
@@ -435,27 +426,6 @@ jobs:
           mysql -u "$ADMIN_USER" -e "CREATE DATABASE IF NOT EXISTS stormbyte_test;"
           mysql -u "$ADMIN_USER" -e "GRANT ALL PRIVILEGES ON stormbyte_test.* TO 'testuser'@'localhost'; FLUSH PRIVILEGES;"
 
-      - name: Install system database development libraries
-        if: matrix.dependencies == 'SYSTEM'
-        shell: bash
-        run: |
-          set -euo pipefail
-          brew install sqlite postgresql@15 mariadb-connector-c freetds
-          echo "CMAKE_PREFIX_PATH=$(brew --prefix):$(brew --prefix sqlite):$(brew --prefix postgresql@15):$(brew --prefix mariadb-connector-c):$(brew --prefix freetds):${CMAKE_PREFIX_PATH:-}" >> "$GITHUB_ENV"
-
-      - name: OpenSSL for system dependencies
-        if: matrix.dependencies == 'SYSTEM'
-        shell: bash
-        run: |
-          set -euo pipefail
-          brew install openssl@3
-          PREFIX="$(brew --prefix openssl@3)"
-          echo "OPENSSL_ROOT_DIR=${PREFIX}" >> "$GITHUB_ENV"
-          echo "CMAKE_PREFIX_PATH=${PREFIX}:${CMAKE_PREFIX_PATH:-}" >> "$GITHUB_ENV"
-          echo "PKG_CONFIG_PATH=${PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH:-}" >> "$GITHUB_ENV"
-          echo "LDFLAGS=-L${PREFIX}/lib ${LDFLAGS:-}" >> "$GITHUB_ENV"
-          echo "CPPFLAGS=-I${PREFIX}/include ${CPPFLAGS:-}" >> "$GITHUB_ENV"
-
       - name: Connect to private SQL Server
         if: env.MSSQL_HOST != ''
         uses: tailscale/github-action@v4
@@ -493,10 +463,10 @@ jobs:
       - name: Build with toolchain
         uses: stormbytepp/githubactions/.github/actions/build-with-toolchain@master
         with:
-          compiler: ${{ matrix.compiler }}
+          compiler: clang
           compiler-cache-key: database-v1
-          compiler-cache-scope: macos-${{ matrix.compiler }}-${{ matrix.dependencies }}
-          buildmaster-cache-key: bm-database-macos-${{ matrix.compiler }}-${{ matrix.dependencies }}
+          compiler-cache-scope: macos-clang-BUNDLED
+          buildmaster-cache-key: bm-database-macos-clang-BUNDLED
           build-type: ${{ env.BUILD_TYPE }}
           pgo: false
           lto: false
@@ -504,12 +474,12 @@ jobs:
           cmake-options: >-
             -DENABLE_TEST=ON
             -DBUILD_SHARED_LIBS=ON
-            -DWITH_SQLITE=${{ matrix.dependencies }}
-            -DWITH_POSTGRES=${{ matrix.dependencies }}
-            -DWITH_MARIADB=${{ matrix.dependencies }}
-            -DWITH_MSSQL=${{ matrix.dependencies }}
-            ${{ matrix.dependencies == 'BUNDLED' && '-DGPERF_SYSTEM_EXECUTABLE=OFF' || '' }}
-            ${{ matrix.dependencies != 'OFF' && format('-DWITH_OPENSSL={0}', matrix.dependencies) || '' }}
+            -DWITH_SQLITE=BUNDLED
+            -DWITH_POSTGRES=BUNDLED
+            -DWITH_MARIADB=BUNDLED
+            -DWITH_MSSQL=BUNDLED
+            -DGPERF_SYSTEM_EXECUTABLE=OFF
+            -DWITH_OPENSSL=BUNDLED
             -DWITH_STORMBYTE=BUNDLED
           ctest: true
           ctest-options: --output-on-failure --test-dir ${{ github.workspace }}/build/test
