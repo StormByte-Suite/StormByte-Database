@@ -14,6 +14,24 @@ if(ENABLE_TEST)
 		)
 	endforeach()
 	add_test(NAME DummyTests COMMAND DummyTests)
+
+	if(TARGET gperf AND NOT CMAKE_CROSSCOMPILING)
+		set(_gperf_executable "${BUILDMASTER_INSTALL_BINDIR}/gperf${CMAKE_EXECUTABLE_SUFFIX}")
+		set(_gperf_output "${CMAKE_CURRENT_BINARY_DIR}/gperf_smoke_generated.h")
+		add_custom_command(
+			OUTPUT "${_gperf_output}"
+			COMMAND "${_gperf_executable}" "--output-file=${_gperf_output}"
+				"${CMAKE_CURRENT_SOURCE_DIR}/gperf_smoke.gperf"
+			DEPENDS gperf_install "${CMAKE_CURRENT_SOURCE_DIR}/gperf_smoke.gperf"
+			VERBATIM
+		)
+		add_executable(BundledGperfTests gperf_smoke_test.c "${_gperf_output}")
+		target_include_directories(BundledGperfTests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+		add_test(NAME BundledGperfTests COMMAND BundledGperfTests)
+		add_test(NAME BundledGperfVersion COMMAND "${_gperf_executable}" --version)
+		set_tests_properties(BundledGperfVersion PROPERTIES
+			PASS_REGULAR_EXPRESSION "GNU gperf 3[.]3")
+	endif()
 	
 	if (NOT WITH_SQLITE STREQUAL "OFF")
 		add_executable(SQLiteTests sqlite_test.cxx)

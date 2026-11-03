@@ -25,16 +25,18 @@ elseif(WITH_MSSQL STREQUAL "BUNDLED")
 		message(STATUS "Using system GNU gperf: ${GPERF_SYSTEM_EXECUTABLE}")
 		set(_build_gperf OFF)
 	else()
-		message(STATUS "System GNU gperf not found; building the pinned gperf submodule")
+		message(STATUS "System GNU gperf not found; building GNU gperf 3.3")
 		add_subdirectory(gperf)
 		set(_build_gperf ON)
+		list(APPEND FREETDS_OPTIONS
+			"GPERF=${BUILDMASTER_INSTALL_BINDIR}/gperf${CMAKE_EXECUTABLE_SUFFIX}")
 	endif()
 	if(WIN32)
-		set(FREETDS_LINK "LINK={tds;replacements;tdsutils;ws2_32;crypt32}")
+		set(FREETDS_LINK "LINK={ws2_32;crypt32}")
 	elseif(APPLE)
-		set(FREETDS_LINK "LINK={tds;replacements;tdsutils;iconv}")
+		set(FREETDS_LINK "LINK={iconv}")
 	else()
-		set(FREETDS_LINK "LINK={tds;replacements;tdsutils}")
+		set(FREETDS_LINK "")
 	endif()
 
 	buildmaster_component(
@@ -43,7 +45,7 @@ elseif(WITH_MSSQL STREQUAL "BUNDLED")
 		"${CMAKE_CURRENT_LIST_DIR}/src"
 		"${FREETDS_OPTIONS}"
 		static
-		"db-lib"
+		"db-lib;tds;replacements;tdsutils"
 		"ALIAS=FreeTDS::DBLib;${FREETDS_LINK};GIT={RESET;PATCH={0001-Put-options-to-only-consume-client-library.patch;0002-Add-static-linkage.patch}}"
 	)
 	if(_build_gperf)

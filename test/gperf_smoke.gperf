@@ -1,0 +1,12 @@
+%{
+#include <stddef.h>
+#include <string.h>
+%}
+%language=ANSI-C
+%readonly-tables
+%struct-type
+struct test_word { const char *name; int value; };
+%%
+alpha, 1
+omega, 2
+%%

@@ -29,12 +29,15 @@ If you landed here from a release link and have not read the tree:
 ### Changed
 
 - **Breaking:** Require Base 3.0.0 component discovery and use the Linux archive naming scheme with architecture, libc and C++ standard library.
-- Require StormByte-Logger 3.0.0 and StormByte-BuildMaster 2.1.4.
+- Require StormByte-Logger 3.0.0 and StormByte-BuildMaster 2.1.5.
 - Stop forcing CPU and optimization flags in manual Release builds; CPU selection now comes from the toolchain while `ENABLE_LTO` remains independently configurable.
 
 ### Fixed
 
 - Reconfigure automatically when `VERSION` changes so rebuilt and installed artifacts use the updated project version.
+- Restore OFF, SYSTEM and BUNDLED backend coverage for every Linux CI architecture, libc and C++ runtime combination, with system development packages installed inside Alpine for musl builds.
+- Build GNU gperf 3.3 from its verified official source archive with a CMake port when FreeTDS cannot use a system gperf, fixing the bundled build with GCC 15 on musl.
+- Correct bundled FreeTDS linking with strict linkers.
 
 [Unreleased]: https://github.com/StormByte-Suite/StormByte-Database/compare/3.0.0...HEAD
 [3.0.0]: https://github.com/StormByte-Suite/StormByte-Database/compare/2.1.3...3.0.0

@@ -71,7 +71,7 @@ jobs:
             stdlib: libstdc++
           - compiler: clang
             stdlib: libc++
-        dependencies: [BUNDLED]
+        dependencies: [OFF, BUNDLED, SYSTEM]
     runs-on: ${{ matrix.platform.runner }}
     services:
       postgres:
@@ -85,7 +85,7 @@ jobs:
           --health-interval=5s
           --health-timeout=3s
           --health-retries=10
-    name: linux-${{ matrix.platform.arch }}-${{ matrix.libc }}-${{ matrix.toolchain.stdlib }}
+    name: linux-${{ matrix.platform.arch }}-${{ matrix.libc }}-${{ matrix.toolchain.stdlib }}-${{ matrix.dependencies }}
 
     env:
       MSSQL_HOST: ""
@@ -236,7 +236,7 @@ jobs:
           sudo mysql -e "GRANT ALL PRIVILEGES ON stormbyte_test.* TO 'testuser'@'localhost'; FLUSH PRIVILEGES;"
 
       - name: Install system database development libraries
-        if: matrix.dependencies == 'SYSTEM'
+        if: matrix.dependencies == 'SYSTEM' && matrix.libc == 'glibc'
         uses: stormbytepp/githubactions/.github/actions/install-cached@master
         with:
           packages: "libsqlite3-dev libpq-dev libmariadb-dev freetds-dev"
@@ -275,8 +275,9 @@ jobs:
           cxx-stdlib: ${{ matrix.toolchain.stdlib }}
           libc: ${{ matrix.libc }}
           compiler-cache-key: database-v1
-          compiler-cache-scope: ${{ matrix.platform.arch }}-${{ matrix.libc }}-${{ matrix.toolchain.compiler }}-${{ matrix.toolchain.stdlib }}
-          buildmaster-cache-key: bm-database-${{ matrix.platform.arch }}-${{ matrix.libc }}-${{ matrix.toolchain.compiler }}-${{ matrix.toolchain.stdlib }}
+          compiler-cache-scope: ${{ matrix.platform.arch }}-${{ matrix.libc }}-${{ matrix.toolchain.compiler }}-${{ matrix.toolchain.stdlib }}-${{ matrix.dependencies }}
+          buildmaster-cache-key: bm-database-${{ matrix.platform.arch }}-${{ matrix.libc }}-${{ matrix.toolchain.compiler }}-${{ matrix.toolchain.stdlib }}-${{ matrix.dependencies }}
+          extra-packages: ${{ matrix.libc == 'musl' && matrix.dependencies == 'SYSTEM' && 'sqlite-dev libpq-dev mariadb-connector-c-dev freetds-dev openssl-dev' || '' }}
           build-type: ${{ env.BUILD_TYPE }}
           pgo: false
           lto: false
@@ -288,6 +289,7 @@ jobs:
             -DWITH_POSTGRES=${{ matrix.dependencies }}
             -DWITH_MARIADB=${{ matrix.dependencies }}
             -DWITH_MSSQL=${{ matrix.dependencies }}
+            ${{ matrix.dependencies == 'BUNDLED' && '-DGPERF_SYSTEM_EXECUTABLE=OFF' || '' }}
             ${{ matrix.dependencies != 'OFF' && format('-DWITH_OPENSSL={0}', matrix.dependencies) || '' }}
             -DWITH_STORMBYTE=BUNDLED
           ctest: true
@@ -371,6 +373,7 @@ jobs:
             -DWITH_POSTGRES=OFF
             -DWITH_MARIADB=OFF
             -DWITH_MSSQL=BUNDLED
+            -DGPERF_SYSTEM_EXECUTABLE=OFF
             -DWITH_OPENSSL=BUNDLED
             -DWITH_STORMBYTE=BUNDLED
           ctest: true
@@ -555,6 +558,7 @@ jobs:
             -DWITH_POSTGRES=${{ matrix.dependencies }}
             -DWITH_MARIADB=${{ matrix.dependencies }}
             -DWITH_MSSQL=${{ matrix.dependencies }}
+            ${{ matrix.dependencies == 'BUNDLED' && '-DGPERF_SYSTEM_EXECUTABLE=OFF' || '' }}
             ${{ matrix.dependencies != 'OFF' && format('-DWITH_OPENSSL={0}', matrix.dependencies) || '' }}
             -DWITH_STORMBYTE=BUNDLED
           ctest: true
@@ -853,6 +857,7 @@ jobs:
             -DWITH_POSTGRES=BUNDLED
             -DWITH_MARIADB=BUNDLED
             -DWITH_MSSQL=BUNDLED
+            -DGPERF_SYSTEM_EXECUTABLE=OFF
             -DWITH_OPENSSL=BUNDLED
             -DWITH_STORMBYTE=BUNDLED
           ctest: true

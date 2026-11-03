@@ -1,0 +1,20 @@
+#include <config.h>
+#include <errno.h>
+#include <io.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
+#ifndef S_ISREG
+#define S_ISREG(mode) (((mode) & _S_IFMT) == _S_IFREG)
+#endif
+#define fileno _fileno
+#define fstat _fstat64
+#define stat _stat64
+#define ftello _ftelli64
+#define off_t int64_t
+
+#include "@GPERF_SOURCE_DIR@/lib/read-file.c"

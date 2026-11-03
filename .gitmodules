@@ -10,10 +10,6 @@
 [submodule "FreeTDS"]
 	path = thirdparty/freetds/src
 	url = https://github.com/FreeTDS/freetds.git
-[submodule "Gperf"]
-	path = thirdparty/freetds/gperf/src
-	url = https://github.com/jwinarske/gperf.git
-	branch = cmake
 [submodule "OpenSSL CMake port"]
 	path = thirdparty/openssl/cmake
 	url = https://github.com/jimmy-park/openssl-cmake.git
