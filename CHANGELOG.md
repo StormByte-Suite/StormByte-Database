@@ -20,6 +20,9 @@ If you landed here from a release link and have not read the tree:
 - What this module is, how to build it, and short examples: [README.md](https://github.com/StormByte-Suite/StormByte-Database/blob/master/README.md)
 - License: dual LGPL v3.0-or-later / commercial, [LICENSE](https://github.com/StormByte-Suite/StormByte-Database/blob/master/LICENSE) and [COPYING.LGPLv3](https://github.com/StormByte-Suite/StormByte-Database/blob/master/COPYING.LGPLv3)
 
+## [Unreleased]
+[Unreleased]: https://github.com/StormByte-Suite/StormByte-Database/compare/3.0.0...HEAD
+
 ## [3.0.0] - 2026-11-04
 
 ### Added
@@ -43,7 +46,6 @@ If you landed here from a release link and have not read the tree:
 - Enable C++ exception handling for the bundled gperf tool with MSVC-compatible compilers, fixing the Windows clang-cl build.
 - Correct bundled FreeTDS linking with strict linkers.
 
-[Unreleased]: https://github.com/StormByte-Suite/StormByte-Database/compare/3.0.0...HEAD
 [3.0.0]: https://github.com/StormByte-Suite/StormByte-Database/compare/2.1.3...3.0.0
 
 ## [2.1.3] - 2026-11-02
