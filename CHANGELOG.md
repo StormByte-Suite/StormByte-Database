@@ -39,6 +39,7 @@ If you landed here from a release link and have not read the tree:
 - Keep macOS and Windows CI to one BUNDLED variant each.
 - Run SQL Server integration within the Linux amd64 backend matrix and skip it on ARM64 when no server is configured.
 - Build GNU gperf 3.3 from its verified official source archive with a CMake port when FreeTDS cannot use a system gperf, fixing the bundled build with GCC 15 on musl.
+- Enable C++ exception handling for the bundled gperf tool with MSVC-compatible compilers, fixing the Windows clang-cl build.
 - Correct bundled FreeTDS linking with strict linkers.
 
 [Unreleased]: https://github.com/StormByte-Suite/StormByte-Database/compare/3.0.0...HEAD

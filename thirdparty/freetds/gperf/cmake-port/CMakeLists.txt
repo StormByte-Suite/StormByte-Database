@@ -104,6 +104,9 @@ target_include_directories(gperf PRIVATE
 if(NOT HAVE_UNISTD_H)
 	target_include_directories(gperf PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/windows")
 endif()
+if(MSVC)
+	target_compile_options(gperf PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:/EHsc>")
+endif()
 set_target_properties(gperf PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON)
 
 install(TARGETS gperf RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
