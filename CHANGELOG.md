@@ -20,7 +20,7 @@ If you landed here from a release link and have not read the tree:
 - What this module is, how to build it, and short examples: [README.md](https://github.com/StormByte-Suite/StormByte-Database/blob/master/README.md)
 - License: dual LGPL v3.0-or-later / commercial, [LICENSE](https://github.com/StormByte-Suite/StormByte-Database/blob/master/LICENSE) and [COPYING.LGPLv3](https://github.com/StormByte-Suite/StormByte-Database/blob/master/COPYING.LGPLv3)
 
-## [3.0.0] - 2026-11-03
+## [3.0.0] - 2026-11-04
 
 ### Added
 
@@ -34,6 +34,7 @@ If you landed here from a release link and have not read the tree:
 
 ### Fixed
 
+- PGO training runner now prepends its library directories to `LD_LIBRARY_PATH`/`DYLD_LIBRARY_PATH` with the `:` separator (previously `;`, which broke library lookup on musl) and no longer appends an empty entry when the variable is unset.
 - Reconfigure automatically when `VERSION` changes so rebuilt and installed artifacts use the updated project version.
 - Restore OFF, SYSTEM and BUNDLED backend coverage for every Linux CI architecture, libc and C++ runtime combination, with system development packages installed inside Alpine for musl builds.
 - Keep macOS and Windows CI to one BUNDLED variant each.
