@@ -317,6 +317,7 @@ jobs:
           cpu-baseline: auto
           cmake-options: >-
             -DENABLE_TEST=ON
+            -DENABLE_CI_FIXTURES=ON
             -DBUILD_SHARED_LIBS=ON
             -DWITH_SQLITE=${{ matrix.dependencies }}
             -DWITH_POSTGRES=${{ matrix.dependencies }}
@@ -473,6 +474,7 @@ jobs:
           cpu-baseline: auto
           cmake-options: >-
             -DENABLE_TEST=ON
+            -DENABLE_CI_FIXTURES=ON
             -DBUILD_SHARED_LIBS=ON
             -DWITH_SQLITE=BUNDLED
             -DWITH_POSTGRES=BUNDLED
@@ -772,6 +774,7 @@ jobs:
           cpu-baseline: auto
           cmake-options: >-
             -DENABLE_TEST=ON
+            -DENABLE_CI_FIXTURES=ON
             -DBUILD_SHARED_LIBS=ON
             -DWITH_SQLITE=BUNDLED
             -DWITH_POSTGRES=BUNDLED

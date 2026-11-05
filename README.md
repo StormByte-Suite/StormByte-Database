@@ -65,6 +65,10 @@ The suite is split on purpose. Base, Buffer, Config, Crypto, Logger, Multimedia,
 
 ## Installation
 
+`-DENABLE_TEST=ON` keeps normal tests available locally and during PGO training.
+Package discovery and installed-consumer fixtures are CI-only and require
+`-DENABLE_CI_FIXTURES=ON`, which is disabled by default and enabled explicitly by CI.
+
 Needs a C++26 compiler, CMake 3.28 or newer, StormByte-BuildMaster 2.1.5, StormByte Base 3.0.0 and StormByte-Logger 3.0.0. Base and Logger are release archives, not submodules. The SQLite, PostgreSQL, MariaDB and MSSQL backends are independently optional. The default for each is `BUNDLED`; set each `WITH_SQLITE`, `WITH_POSTGRES`, `WITH_MARIADB` or `WITH_MSSQL` option to `OFF`, `SYSTEM` or `BUNDLED` to choose explicitly. `SYSTEM` discovers an installed client library and `BUNDLED` builds the pinned client dependency. Only enabled backends are compiled and their optional headers installed. The bundled MSSQL backend compiles FreeTDS DB-Library and the TDS support it needs, under the GNU Library General Public License v2 or later. FreeTDS utilities, the server, ODBC and CT-Library are not compiled in.
 
 `WITH_OPENSSL` accepts `SYSTEM` or `BUNDLED` (default); `OFF` is not supported. Windows always forces `BUNDLED`, regardless of the requested value. It selects TLS dependencies for bundled PostgreSQL, MariaDB and FreeTDS clients. `BUNDLED` builds their common pinned OpenSSL 3.5.9 dependency as static libraries, with SSLv3 and TLS compression disabled; TLS 1.2/1.3 and the available cipher algorithms remain enabled. It requires Perl and a make implementation, plus NASM on Windows. `SYSTEM` uses installed dynamic OpenSSL libraries and development files without requesting static archives; PostgreSQL uses Meson's normal OpenSSL discovery. Already-installed system database clients keep their own TLS dependencies. Changing dependency modes requires a clean build directory.

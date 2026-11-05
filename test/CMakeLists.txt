@@ -1,4 +1,5 @@
 option(ENABLE_TEST "Enable Unit Tests" OFF)
+option(ENABLE_CI_FIXTURES "Enable CI-only package discovery and installed-consumer fixtures" OFF)
 if(ENABLE_TEST)
 	enable_testing()
 
@@ -58,7 +59,7 @@ if(ENABLE_TEST)
 		set_tests_properties(MSSQLTests PROPERTIES SKIP_RETURN_CODE 77)
 	endif()
 
-	if(BUILD_SHARED_LIBS)
+	if(ENABLE_CI_FIXTURES AND BUILD_SHARED_LIBS)
 		set(_smoke_system_lib_dir "")
 		set(_smoke_system_include_dir "")
 		if(TARGET StormByte-Logger)
@@ -97,7 +98,7 @@ if(ENABLE_TEST)
 		)
 	endif()
 
-	if(WITH_STORMBYTE STREQUAL "BUNDLED" AND NOT CMAKE_CROSSCOMPILING)
+	if(ENABLE_CI_FIXTURES AND WITH_STORMBYTE STREQUAL "BUNDLED" AND NOT CMAKE_CROSSCOMPILING)
 		set(_package_cxx_flags "${CMAKE_CXX_FLAGS}")
 		if(COMMAND _pgo_strip_profile_flags)
 			_pgo_strip_profile_flags("${_package_cxx_flags}" _package_cxx_flags)
